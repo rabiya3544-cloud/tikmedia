@@ -1,0 +1,1871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0a0d12">
+<meta name="color-scheme" content="dark">
+<title>Tok Player — Player & Downloader</title>
+<style>
+  :root{
+    --bg:#0a0d12; --surface:#131922; --surface2:#1b2431; --line:#26313f;
+    --text:#e8eef6; --muted:#8b9bb0; --accent:#25f4ee; --accent2:#fe2c55;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1100px 560px at 50% -12%, #16202e 0%, var(--bg) 62%);
+    color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    min-height:100dvh;
+    padding-left:env(safe-area-inset-left);
+    padding-right:env(safe-area-inset-right);
+  }
+  [hidden]{display:none!important}
+  .wrap{max-width:520px;margin:0 auto;padding:14px 14px calc(30px + env(safe-area-inset-bottom))}
+
+  /* ---------- header ---------- */
+  header{display:flex;align-items:center;gap:10px;padding:4px 2px 14px}
+  .logo{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;
+        background:linear-gradient(135deg,var(--accent),var(--accent2));
+        color:#06121a;font-weight:800;font-size:15px;flex:0 0 auto}
+  .brand{min-width:0;flex:1}
+  h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.2px}
+  .sub{font-size:11px;color:var(--muted);margin-top:2px;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* ---------- header action button ---------- */
+  .hbtn{
+    flex:0 0 auto;width:38px;height:38px;border-radius:11px;
+    display:grid;place-items:center;
+    background:var(--surface2);border:1px solid var(--line);color:var(--muted);
+    text-decoration:none;cursor:pointer;padding:0;font:inherit;
+    transition:transform .12s, color .15s, border-color .15s, background .15s;
+  }
+  .hbtn:hover{color:var(--accent);border-color:var(--accent);background:#16202c}
+  .hbtn:active{transform:scale(.92)}
+  .hbtn[aria-pressed="true"]{color:var(--accent);border-color:var(--accent);
+    background:rgba(37,244,238,.10)}
+  .hbtn .i{width:20px;height:20px}
+
+  /* ---------- player ---------- */
+  .player{position:relative;border-radius:var(--radius);overflow:hidden;background:#000;
+          height:min(56dvh,460px);border:1px solid var(--line);
+          box-shadow:0 12px 34px rgba(0,0,0,.5);margin-bottom:12px}
+  video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
+  .placeholder{position:absolute;inset:0;display:flex;flex-direction:column;gap:10px;
+               align-items:center;justify-content:center;color:#4d5c70;font-size:12.5px;
+               pointer-events:none;text-align:center;padding:20px}
+  .spinner{position:absolute;left:50%;top:50%;width:36px;height:36px;margin:-18px 0 0 -18px;
+           border-radius:50%;border:3px solid rgba(255,255,255,.15);
+           border-top-color:var(--accent);animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .overlay{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;gap:2px;
+           padding:26px 10px 8px;transition:opacity .25s;
+           background:linear-gradient(to top,rgba(0,0,0,.88),rgba(0,0,0,.45) 52%,transparent)}
+  .player.hide-ui .overlay{opacity:0;pointer-events:none}
+  .row{display:flex;align-items:center;gap:6px}
+  .spacer{flex:1}
+  .time{font-size:11px;color:#cbd5e1;font-variant-numeric:tabular-nums;letter-spacing:.3px}
+
+  /* ---------- buttons / controls ---------- */
+  .icon{width:34px;height:34px;border-radius:10px;border:0;background:rgba(255,255,255,.09);
+        color:#fff;display:grid;place-items:center;cursor:pointer;flex:0 0 auto;
+        transition:transform .12s, background .15s}
+  .icon:active{transform:scale(.92)}
+  .icon.sm{width:30px;height:30px;border-radius:9px}
+  .i{width:18px;height:18px;fill:currentColor;display:block}
+  .i.big{width:46px;height:46px;opacity:.35}
+  .chip{height:30px;min-width:42px;padding:0 9px;border-radius:10px;border:0;
+        background:rgba(255,255,255,.09);color:#fff;font-size:12px;font-weight:700;
+        cursor:pointer;flex:0 0 auto}
+  .chip:active{transform:scale(.94)}
+
+  /* ---------- seek ---------- */
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:20px;
+                    background:transparent;margin:0;cursor:pointer}
+  input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;
+    background:linear-gradient(to right,var(--accent) var(--p,0%), rgba(255,255,255,.25) var(--p,0%))}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;
+    border-radius:50%;background:#fff;margin-top:-4.5px;
+    box-shadow:0 0 0 4px rgba(37,244,238,.16)}
+  input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:rgba(255,255,255,.25)}
+  input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--accent)}
+  input[type=range]::-moz-range-thumb{width:13px;height:13px;border:0;border-radius:50%;background:#fff}
+
+  /* ---------- cards ---------- */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+        padding:12px;margin-bottom:10px}
+  .lbl{display:block;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
+       color:var(--muted);margin-bottom:7px}
+  .field{display:flex;gap:8px;align-items:center}
+  input[type=url]{flex:1;min-width:0;height:44px;border-radius:12px;border:1px solid var(--line);
+    background:#0e141c;color:var(--text);padding:0 12px;font-size:13px;outline:none}
+  input[type=url]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,244,238,.13)}
+  .field .icon{width:44px;height:44px;border-radius:12px;background:var(--surface2);
+               border:1px solid var(--line)}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;
+       padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface2);
+       color:var(--text);font-size:13.5px;font-weight:600;cursor:pointer;width:100%;
+       transition:transform .12s, filter .15s;font-family:inherit;text-decoration:none}
+  .btn:active{transform:scale(.975)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),#22a7f0);
+               border-color:transparent;color:#04121a}
+  .btn.primary.big{height:48px;font-size:14.5px}
+  .btn.busy{background:linear-gradient(135deg,var(--accent2),#ff6b81);color:#1a0308}
+  .btn:disabled{opacity:.45;pointer-events:none}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+  .progress{height:6px;border-radius:3px;background:rgba(255,255,255,.09);overflow:hidden;
+            margin-top:9px;display:none}
+  .progress.on{display:block}
+  .progress > i{display:block;height:100%;width:0;border-radius:3px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .18s ease}
+
+  .hint{font-size:11px;color:var(--muted);line-height:1.5;margin:9px 2px 0}
+  .foot{font-size:10.5px;color:#55657a;text-align:center;margin:16px 0 0}
+
+  /* ---------- history ---------- */
+  .cardhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+  .cardhead > span{font-size:11px;font-weight:700;letter-spacing:.7px;
+                   text-transform:uppercase;color:var(--muted)}
+  .linkbtn{background:none;border:0;color:var(--accent);font-size:12px;font-weight:600;
+           cursor:pointer;padding:4px 2px;font-family:inherit;text-decoration:none}
+  .hist{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;
+        -webkit-overflow-scrolling:touch}
+  .hitem{display:flex;align-items:center;gap:7px;background:var(--surface2);
+         border:1px solid var(--line);border-radius:11px;padding:6px 7px}
+  .hitem .i{margin-left:3px;color:#5d7089;flex:0 0 auto}
+  .hitem .u{flex:1;min-width:0;font-size:11.5px;color:#b9c6d6;overflow:hidden;
+            text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,monospace}
+
+  /* ---------- toast ---------- */
+  .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));
+    transform:translate(-50%,22px);background:#1b2431;border:1px solid var(--line);
+    color:var(--text);padding:11px 15px;border-radius:13px;font-size:12.5px;line-height:1.45;
+    opacity:0;pointer-events:none;transition:.26s ease;z-index:60;max-width:min(90vw,420px);
+    text-align:center;box-shadow:0 12px 30px rgba(0,0,0,.55)}
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+
+  /* ---------- fullscreen ---------- */
+  .player:fullscreen{height:100dvh;border-radius:0;border:0}
+  .player:fullscreen video{height:100dvh}
+  .player:-webkit-full-screen{height:100dvh;border-radius:0}
+  .player:-webkit-full-screen video{height:100dvh}
+
+  /* ==================================================================
+     JSON WIDGET — extra styles (reuse everything else above)
+     ================================================================== */
+
+  .drop{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    border:1.5px dashed var(--line);border-radius:12px;padding:18px 12px;
+    text-align:center;cursor:pointer;transition:.15s;margin-bottom:10px;
+  }
+  .drop:active,.drop.over{background:rgba(37,244,238,.06);border-color:var(--accent)}
+  .drop.has{border-style:solid;border-color:rgba(37,244,238,.55)}
+  .drop strong{font-size:13px;word-break:break-all;color:var(--text);font-weight:600}
+  .drop small{font-size:11px;color:var(--muted)}
+
+  .jfield{display:block;margin-bottom:9px}
+  .jfield .lbl{margin-bottom:5px}
+  .jfield input[type=text]{
+    width:100%;height:44px;padding:0 12px;
+    font:13px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;
+    color:var(--text);background:#0e141c;border:1px solid var(--line);
+    border-radius:10px;outline:none;
+  }
+  .jfield input[type=text]:focus{border-color:var(--accent);
+    box-shadow:0 0 0 3px rgba(37,244,238,.13)}
+
+  .check{display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer;
+    padding:2px 0 10px;color:var(--text);-webkit-tap-highlight-color:transparent}
+  .check input{width:18px;height:18px;accent-color:var(--accent);flex:none;margin:0}
+
+  .jpre{
+    margin:9px 0;padding:10px;background:#0e141c;border:1px solid var(--line);
+    border-radius:10px;font:11.5px/1.45 ui-monospace,Menlo,monospace;overflow:auto;
+    max-height:150px;white-space:pre-wrap;word-break:break-word;color:var(--muted);
+  }
+  .jitem{
+    display:flex;align-items:center;gap:7px;background:var(--surface2);
+    border:1px solid var(--line);border-radius:11px;padding:6px 7px;
+  }
+  .jitem .u{flex:1;min-width:0;font-size:11.5px;color:#b9c6d6;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,monospace}
+  .jitem .meta{font-size:10.5px;color:var(--muted);white-space:nowrap;flex:0 0 auto}
+  .jitem.no-url .u{color:var(--muted)}
+  .jitem .icon.sm{background:rgba(255,255,255,.08)}
+  .jitem .icon.sm:hover{background:rgba(37,244,238,.20);color:var(--accent)}
+  .jerr{color:var(--accent2);font-size:12px;margin-top:9px;word-break:break-word}
+/* ---------- modal ---------- */
+  .modal{
+    position:fixed;inset:0;z-index:80;
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;transition:opacity .22s ease;
+  }
+  .modal[hidden]{display:none!important}
+  .modal.on{opacity:1}
+  .modal-backdrop{
+    position:absolute;inset:0;background:rgba(0,0,0,.72);
+    -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  }
+  .modal-panel{
+    position:relative;z-index:1;
+    width:100%;max-width:520px;
+    margin:0;
+    max-height:90dvh;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    border-radius:16px 16px 0 0;
+    border-bottom:0;
+    padding:14px;
+    padding-bottom:calc(14px + env(safe-area-inset-bottom));
+    transform:translateY(28px);
+    transition:transform .26s cubic-bezier(.2,.9,.3,1);
+    box-shadow:0 -12px 40px rgba(0,0,0,.5);
+  }
+  .modal.on .modal-panel{transform:translateY(0)}
+  @media (min-width:600px){
+    .modal{align-items:center;padding:20px}
+    .modal-panel{
+      border-radius:16px;border-bottom:1px solid var(--line);
+      max-height:85dvh;
+      transform:scale(.97);
+      box-shadow:0 24px 60px rgba(0,0,0,.55);
+    }
+    .modal.on .modal-panel{transform:scale(1)}
+  }
+  body.modal-open{overflow:hidden}
+  .hidden{
+    display:none!important;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ SVG SPRITE ============ -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12z"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4zm13.2 1.8L19.4 8.6l1.4 1.4-2.2 2.2 2.2 2.2-1.4 1.4-2.2-2.2-2.2 2.2-1.4-1.4 2.2-2.2-2.2-2.2 1.4-1.4z"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 4h7v2H6v5H4V4zm9 0h7v7h-2V6h-5V4zM4 13h2v5h5v2H4v-7zm14 0h2v7h-7v-2h5v-5z"/></symbol>
+  <symbol id="i-shrink" viewBox="0 0 24 24"><path d="M9 4h2v7H4V9h5V4zm4 0h2v5h5v2h-7V4zM4 13h7v7H9v-5H4v-2zm9 0h7v2h-5v5h-2v-7z"/></symbol>
+  <symbol id="i-pip" viewBox="0 0 24 24"><path d="M3 5h18v14H3V5zm2 2v10h14V7H5zm8 4h5v4h-5v-4z"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M11 3h2v10.17l3.59-3.58L18 11l-6 6-6-6 1.41-1.41L11 13.17V3zM5 19h14v2H5v-2z"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M11 21h2V10.83l3.59 3.58L18 13l-6-6-6 6 1.41 1.41L11 10.83V21zM5 3h14v2H5V3z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><path d="M8 2h11v14h-2V4H8V2zM5 6h11v16H5V6zm2 2v12h7V8H7z"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="M14 3h7v7h-2V6.41l-8.29 8.3-1.42-1.42L17.59 5H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z"/></symbol>
+  <symbol id="i-paste" viewBox="0 0 24 24"><path d="M9 2h6v2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V2zm0 4H7v14h10V6h-2v2H9V6z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zM6 8h12l-1 13H7L6 8z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm1-13h-2v6l5 3 1-1.7-4-2.3V7z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6z"/></symbol>
+  <symbol id="i-json" viewBox="0 0 24 24">
+    <path d="M8 3.5H6.5Q4 3.5 4 6v3.5Q4 12 1.5 12 4 12 4 14.5V18q0 2.5 2.5 2.5H8"
+          style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"/>
+    <path d="M16 3.5h1.5Q20 3.5 20 6v3.5Q20 12 22.5 12 20 12 20 14.5V18q0 2.5-2.5 2.5H16"
+          style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"/>
+  </symbol>
+</svg>
+
+<!-- ============================================================
+     JSON WIDGET WORKER — must live in the DOM before the app JS
+     ============================================================ -->
+<script id="jsonWorkerSrc" type="text/js-worker">
+'use strict';
+let cancelled = false;
+
+self.onmessage = function (e) {
+  const m = e.data;
+  if (m.type === 'run') run(m.file, m.path, m.fields || [], !!m.sort);
+  else if (m.type === 'cancel') cancelled = true;
+};
+
+function post(type, data) {
+  const o = { type: type };
+  if (data) for (const k in data) o[k] = data[k];
+  self.postMessage(o);
+}
+
+async function run(file, path, fields, doSort) {
+  try {
+    post('status', { text: 'Reading file…' });
+    let text = await readFile(file);
+    if (cancelled) return;
+
+    post('status', { text: 'Locating ' + path.join(' \u203a ') + ' \u2026' });
+    const range = locate(text, path);
+    if (!range) throw new Error('Path not found: ' + JSON.stringify(path));
+
+    post('status', { text: 'Parsing ' + fmt(range[1] - range[0]) + ' \u2026' });
+    const slice = text.slice(range[0], range[1]);
+    text = null;
+
+    let value = JSON.parse(slice);
+
+    /* ---- sort first, on the original objects ---- */
+    let missingLikes = 0, missingDate = 0, sorted = false;
+    if (doSort && Array.isArray(value) && value.length > 1) {
+      post('status', { text: 'Sorting ' + value.length + ' items\u2026' });
+      const r = sortArray(value);
+      value = r.items;
+      missingLikes = r.missingLikes;
+      missingDate = r.missingDate;
+      sorted = true;
+    }
+
+    /* ---- then keep only the requested fields ---- */
+    if (fields.length) {
+      post('status', { text: 'Keeping ' + fields.length + ' field' + (fields.length === 1 ? '' : 's') + '\u2026' });
+      value = project(value, fields);
+    }
+
+    const isArray = Array.isArray(value);
+    const count = isArray ? value.length
+                : (value && typeof value === 'object' ? Object.keys(value).length : 0);
+
+    let allEmpty = false;
+    if (fields.length && isArray && count > 0) {
+      allEmpty = true;
+      for (let i = 0; i < count; i++) {
+        const v = value[i];
+        if (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length) { allEmpty = false; break; }
+      }
+    }
+
+    let preview = '';
+    try {
+      preview = JSON.stringify(isArray ? value[0] : value);
+      if (preview && preview.length > 700) preview = preview.slice(0, 700) + '\n\u2026';
+    } catch (_) {}
+
+    post('status', { text: 'Building output\u2026' });
+    const out = JSON.stringify(value, null, 0);
+    value = null;
+    const blob = new Blob([out], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    post('done', {
+      url: url, count: count, isArray: isArray, bytes: blob.size,
+      preview: preview, fields: fields, allEmpty: allEmpty,
+      sorted: sorted, missingLikes: missingLikes, missingDate: missingDate
+    });
+  } catch (err) {
+    post('error', { message: (err && err.message) ? err.message : String(err) });
+  }
+}
+
+/* ================= SORTING ================= */
+function numOf(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  if (typeof v === 'string') {
+    const t = v.trim().replace(/,/g, '');
+    if (!t) return null;
+    const n = Number(t);
+    return isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function tsOf(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  if (typeof v === 'string') {
+    const s = v.trim();
+    if (!s) return null;
+    if (/^\d{10,13}$/.test(s)) { const n = Number(s); return isFinite(n) ? n : null; }
+    const t = Date.parse(s);
+    return isNaN(t) ? null : t;
+  }
+  return null;
+}
+
+function sortArray(arr) {
+  const wrapped = arr.map(function (v, i) {
+    const obj = (v && typeof v === 'object' && !Array.isArray(v)) ? v : null;
+    return { v: v, i: i, l: obj ? numOf(obj.Likes) : null, d: obj ? tsOf(obj.Date) : null };
+  });
+  let missingLikes = 0, missingDate = 0;
+  for (let i = 0; i < wrapped.length; i++) {
+    if (wrapped[i].l === null) missingLikes++;
+    if (wrapped[i].d === null) missingDate++;
+  }
+  wrapped.sort(function (a, b) {
+    if (a.l !== b.l) { if (a.l === null) return 1; if (b.l === null) return -1; return b.l - a.l; }
+    if (a.d !== b.d) { if (a.d === null) return 1; if (b.d === null) return -1; return b.d - a.d; }
+    return a.i - b.i;
+  });
+  return { items: wrapped.map(function (w) { return w.v; }), missingLikes: missingLikes, missingDate: missingDate };
+}
+
+/* ---------- keep only selected fields ---------- */
+function project(value, fields) {
+  if (Array.isArray(value)) return value.map(function (v) { return projectOne(v, fields); });
+  return projectOne(value, fields);
+}
+
+function projectOne(obj, fields) {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+  const out = {};
+  for (let i = 0; i < fields.length; i++) {
+    const parts = fields[i].split('.');
+    let src = obj, ok = true;
+    for (let p = 0; p < parts.length; p++) {
+      if (src && typeof src === 'object' && parts[p] in src) src = src[parts[p]];
+      else { ok = false; break; }
+    }
+    if (!ok) continue;
+    let dst = out;
+    for (let p = 0; p < parts.length - 1; p++) {
+      if (!dst[parts[p]] || typeof dst[parts[p]] !== 'object') dst[parts[p]] = {};
+      dst = dst[parts[p]];
+    }
+    dst[parts[parts.length - 1]] = src;
+  }
+  return out;
+}
+
+/* ---------- file reading with progress ---------- */
+async function readFile(file) {
+  const total = file.size;
+  if (!file.stream) return await file.text();
+  const reader = file.stream().getReader();
+  const dec = new TextDecoder('utf-8');
+  const chunks = [];
+  let loaded = 0, last = 0;
+  for (;;) {
+    if (cancelled) { try { reader.cancel(); } catch (_) {} throw new Error('Cancelled'); }
+    const r = await reader.read();
+    if (r.done) break;
+    loaded += r.value.byteLength;
+    chunks.push(dec.decode(r.value, { stream: true }));
+    const t = Date.now();
+    if (t - last > 120) { last = t; post('progress', { loaded: loaded, total: total }); }
+  }
+  chunks.push(dec.decode());
+  post('progress', { loaded: total, total: total });
+  return chunks.join('');
+}
+
+/* ---------- targeted JSON scanner ---------- */
+function locate(text, path) {
+  const n = text.length;
+  let pos = 0;
+  const cc = function (i) { return text.charCodeAt(i); };
+  const isWs = function (c) { return c === 32 || c === 9 || c === 10 || c === 13; };
+  function ws() { while (pos < n && isWs(cc(pos))) pos++; }
+  function scanString() {
+    pos++;
+    while (pos < n) {
+      const c = cc(pos);
+      if (c === 92) { pos += 2; continue; }
+      if (c === 34) { pos++; return; }
+      pos++;
+    }
+    throw new Error('Unterminated string in JSON');
+  }
+  function skipValue() {
+    ws();
+    if (pos >= n) throw new Error('Unexpected end of JSON');
+    const c = cc(pos);
+    if (c === 34) { scanString(); return; }
+    if (c === 123 || c === 91) {
+      let depth = 0;
+      while (pos < n) {
+        const d = cc(pos);
+        if (d === 34) { scanString(); continue; }
+        if (d === 123 || d === 91) depth++;
+        else if (d === 125 || d === 93) { depth--; if (depth === 0) { pos++; return; } }
+        pos++;
+      }
+      throw new Error('Unterminated container in JSON');
+    }
+    while (pos < n) {
+      const d = cc(pos);
+      if (d === 44 || d === 93 || d === 125 || isWs(d)) break;
+      pos++;
+    }
+  }
+  function seek(depth) {
+    ws();
+    if (depth === path.length) { const start = pos; skipValue(); return [start, pos]; }
+    const want = path[depth];
+    const c = cc(pos);
+    if (c === 123) {
+      pos++; ws();
+      if (cc(pos) === 125) { pos++; return null; }
+      for (;;) {
+        ws();
+        if (cc(pos) !== 34) throw new Error('Expected a string key at offset ' + pos);
+        const ks = pos + 1;
+        scanString();
+        const raw = text.slice(ks, pos - 1);
+        const key = raw.indexOf('\\') === -1 ? raw : JSON.parse(text.slice(ks - 1, pos));
+        ws();
+        if (cc(pos) !== 58) throw new Error('Expected ":" at offset ' + pos);
+        pos++;
+        if (key === want) { const res = seek(depth + 1); if (res) return res; }
+        else { skipValue(); }
+        ws();
+        const d = cc(pos);
+        if (d === 44) { pos++; continue; }
+        if (d === 125) { pos++; return null; }
+        throw new Error('Expected "," or "}" at offset ' + pos);
+      }
+    }
+    if (c === 91) {
+      if (!/^\d+$/.test(want)) return null;
+      const idx = Number(want);
+      pos++; ws();
+      if (cc(pos) === 93) { pos++; return null; }
+      let i = 0;
+      for (;;) {
+        if (i === idx) { const res = seek(depth + 1); if (res) return res; }
+        else { skipValue(); }
+        ws();
+        const d = cc(pos);
+        if (d === 44) { pos++; i++; continue; }
+        if (d === 93) { pos++; return null; }
+        throw new Error('Expected "," or "]" at offset ' + pos);
+      }
+    }
+    return null;
+  }
+  return seek(0);
+}
+
+function fmt(b) {
+  if (b < 1024) return b + ' B';
+  const u = ['KB', 'MB', 'GB', 'TB'];
+  let i = -1;
+  do { b /= 1024; i++; } while (b >= 1024 && i < u.length - 1);
+  return b.toFixed(b < 10 ? 1 : 0) + ' ' + u[i];
+}
+</script>
+
+<div class="wrap">
+
+  <header>
+    <div class="logo">▶</div>
+    <div class="brand">
+      <h1>Tok Player</h1>
+      <div class="sub">Player &amp; downloader for direct video links</div>
+    </div>
+    <button class="hbtn" id="jsonToggle" aria-label="Open JSON tools"
+            title="JSON extract" aria-pressed="false">
+      <svg class="i"><use href="#i-json"></use></svg>
+    </button>
+  </header>
+
+  <!-- ================= PLAYER ================= -->
+  <div class="player" id="player">
+    <video id="video" playsinline preload="metadata" webkit-playsinline></video>
+
+    <div class="placeholder" id="placeholder">
+      <svg class="i big"><use href="#i-play"></use></svg>
+      <span>Paste a video link below to start</span>
+    </div>
+
+    <div class="spinner" id="spinner" hidden></div>
+
+    <div class="overlay">
+      <input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek">
+      <div class="row">
+        <button id="playBtn" class="icon" aria-label="Play / Pause">
+          <svg class="i"><use id="playIcon" href="#i-play"></use></svg>
+        </button>
+        <span class="time" id="time">0:00 / 0:00</span>
+        <span class="spacer"></span>
+        <button id="muteBtn" class="icon" aria-label="Mute">
+          <svg class="i"><use id="muteIcon" href="#i-vol"></use></svg>
+        </button>
+        <button id="speedBtn" class="chip" aria-label="Playback speed">1×</button>
+        <button id="pipBtn" class="icon" aria-label="Picture in picture">
+          <svg class="i"><use href="#i-pip"></use></svg>
+        </button>
+        <button id="fsBtn" class="icon" aria-label="Fullscreen">
+          <svg class="i"><use id="fsIcon" href="#i-expand"></use></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= URL ================= -->
+  <section class="card">
+    <label class="lbl" for="url">Video link</label>
+    <div class="field">
+      <input id="url" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+             placeholder="https://video-va.tiktokv.com/…mp4">
+      <button id="pasteBtn" class="icon" aria-label="Paste from clipboard">
+        <svg class="i"><use href="#i-paste"></use></svg>
+      </button>
+    </div>
+    <div class="grid2" style="margin-top:9px">
+      <button id="loadBtn" class="btn primary">
+        <svg class="i"><use href="#i-play"></use></svg>Load
+      </button>
+      <button id="openBtn" class="btn">
+        <svg class="i"><use href="#i-open"></use></svg>Open
+      </button>
+    </div>
+  </section>
+
+  <!-- ================= DOWNLOAD ================= -->
+  <section class="card">
+    <button id="dlBtn" class="btn primary big">
+      <svg class="i"><use href="#i-dl"></use></svg><span id="dlLabel">Download video</span>
+    </button>
+    <div class="progress" id="prog"><i id="progBar"></i></div>
+
+    <button id="upBtn" class="btn primary big" style="margin-top:8px" hidden>
+      <svg class="i"><use href="#i-up"></use></svg><span id="upLabel">Upload</span>
+    </button>
+
+    <div class="grid2" style="margin-top:9px">
+      <button id="copyBtn" class="btn">
+        <svg class="i"><use href="#i-copy"></use></svg>Copy link
+      </button>
+      <button id="clrBtn" class="btn">
+        <svg class="i"><use href="#i-x"></use></svg>Clear
+      </button>
+    </div>
+    <p class="hint hidden">If the CDN blocks direct saving, the file opens in a new tab — long-press the
+      video and choose <b>“Save video”</b>.</p>
+  </section>
+
+  <!-- ================= HISTORY ================= -->
+  <section class="card" id="histWrap" hidden>
+    <div class="cardhead">
+      <span>Recent</span>
+      <button id="histClear" class="linkbtn">Clear all</button>
+    </div>
+    <div class="hist" id="hist"></div>
+  </section>
+
+  <p class="foot">Only download content you have the rights to.</p>
+</div>
+
+<!-- ============================================================
+       ============ JSON EXTRACT MODAL ============================
+       ============================================================ -->
+  <div class="modal" id="jsonModal" hidden
+       role="dialog" aria-modal="true" aria-labelledby="jsonTitle">
+    <div class="modal-backdrop" id="jsonBackdrop"></div>
+
+    <section class="card modal-panel" id="jsonWidget">
+      <div class="cardhead">
+        <span id="jsonTitle">JSON Extract</span>
+        <button id="jsonClose" class="linkbtn">Close</button>
+      </div>
+
+      <label class="drop" id="jsonDrop">
+        <input type="file" id="jsonFile" accept=".json,application/json" hidden>
+        <strong id="jsonFileName">Choose a JSON file</strong>
+        <small id="jsonFileMeta">Tap to browse · nothing is uploaded</small>
+      </label>
+
+      <label class="jfield hidden">
+        <span class="lbl">Path to array</span>
+        <input type="text" id="jsonPath" value="Post.Posts.VideoList"
+               autocapitalize="off" autocorrect="off" spellcheck="false"
+               placeholder="Post.Posts.VideoList or [&quot;a&quot;,&quot;b&quot;]">
+      </label>
+
+      <label class="jfield hidden">
+        <span class="lbl">Fields to keep</span>
+        <input type="text" id="jsonFields" value="Date, Likes, Link, CoverImage"
+               autocapitalize="off" autocorrect="off" spellcheck="false"
+               placeholder="Date, Likes, Link, CoverImage">
+      </label>
+
+      <label class="check hidden">
+        <input type="checkbox" id="jsonSort" checked>
+        <span>Sort by Likes ↓, then Date ↓</span>
+      </label>
+
+      <div class="grid2">
+        <button id="jsonRun" class="btn primary" disabled>Extract</button>
+        <button id="jsonCancel" class="btn" hidden>Cancel</button>
+      </div>
+
+      <div class="progress" id="jsonProg"><i id="jsonProgBar"></i></div>
+      <div class="hint" id="jsonStatus">Pick a JSON file to begin.</div>
+
+      <div id="jsonResult" hidden>
+        <div class="hint" id="jsonStats" style="color:var(--text);font-weight:600;font-size:12px"></div>
+        <div class="hint" id="jsonKept"></div>
+        <pre class="jpre" id="jsonPreview"></pre>
+        <div class="hist" id="jsonItems" style="max-height:300px"></div>
+        <div class="grid2" style="margin-top:9px">
+          <button id="jsonAll" class="btn primary" hidden>Add to recent</button>
+          <a id="jsonDownload" class="btn" download>Download JSON</a>
+        </div>
+      </div>
+
+      <div class="jerr" id="jsonError" hidden></div>
+
+      <p class="hint" style="text-align:right;margin-top:10px">
+        <a href="json.html" style="color:var(--accent);font-size:11px;text-decoration:none">
+          Open full page ↗
+        </a>
+      </p>
+    </section>
+  </div>
+  <!-- ============================================================ -->
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------- element refs ---------------- */
+  const $ = id => document.getElementById(id);
+  const els = {
+    player: $('player'), video: $('video'), placeholder: $('placeholder'), spinner: $('spinner'),
+    seek: $('seek'), time: $('time'), playBtn: $('playBtn'), playIcon: $('playIcon'),
+    muteBtn: $('muteBtn'), muteIcon: $('muteIcon'), speedBtn: $('speedBtn'),
+    pipBtn: $('pipBtn'), fsBtn: $('fsBtn'), fsIcon: $('fsIcon'),
+    url: $('url'), pasteBtn: $('pasteBtn'), loadBtn: $('loadBtn'), openBtn: $('openBtn'),
+    dlBtn: $('dlBtn'), upBtn: $('upBtn'), dlLabel: $('dlLabel'), upLabel: $('upLabel'), prog: $('prog'), progBar: $('progBar'),
+    copyBtn: $('copyBtn'), clrBtn: $('clrBtn'),
+    histWrap: $('histWrap'), hist: $('hist'), histClear: $('histClear'),
+    toast: $('toast')
+  };
+
+  const video = els.video;
+  const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+  const UPLOAD_URL = '';
+  let speedIdx = 2;
+
+  let current = null;
+  let abortCtl = null;
+  let dragging = false;
+  let hideUiTimer = null;
+  
+  let currentSize = 0; // bytes for the URL currently shown
+let sizeProbeUrl = ''; // which URL currentSize describes
+
+
+  /* ---------------- helpers ---------------- */
+  let toastTimer;
+  function toast(msg, ms = 2400) {
+    els.toast.textContent = msg;
+    els.toast.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => els.toast.classList.remove('on'), ms);
+  }
+
+  function fmt(s) {
+    if (!isFinite(s) || s < 0) s = 0;
+    s = Math.floor(s);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
+  }
+
+  function fmtBytes(b) {
+    if (!b) return '0 KB';
+    if (b > 1073741824) return (b / 1073741824).toFixed(2) + ' GB';
+    if (b > 1048576) return (b / 1048576).toFixed(1) + ' MB';
+    return Math.round(b / 1024) + ' KB';
+  }
+
+  function prettyUrl(u) {
+    try {
+      const p = new URL(u);
+      const last = p.pathname.split('/').filter(Boolean).pop() || '';
+      return p.hostname + '/' + (last.length > 22 ? last.slice(0, 22) + '…' : last);
+    } catch { return u.slice(0, 46) + '…'; }
+  }
+
+  function suggestName(u) {
+    try {
+      const p = new URL(u);
+      let base = decodeURIComponent(p.pathname.split('/').filter(Boolean).pop() || '');
+      base = base.replace(/[^\w.\-]+/g, '_').slice(0, 48);
+      if (!/\.(mp4|m4v|webm|mov|ogg)$/i.test(base)) base = (base || 'video') + '.mp4';
+      return 'tiktok_' + base;
+    } catch {
+      return 'video_' + Date.now() + '.mp4';
+    }
+  }
+
+  function isDirectMedia(u) {
+    try {
+      const url = new URL(u);
+      if (/\.(mp4|m4v|webm|ogg|ogv|mov|m3u8)(\?|#|$)/i.test(url.pathname + url.search)) return true;
+      if (/mime_type=video/i.test(u)) return true;
+      if (/(^|\.)(tos|tiktokcdn|tiktokv|muscdn|byteoversea|akamaized|cloudfront)\./i.test(url.hostname)) return true;
+      return false;
+    } catch { return false; }
+  }
+
+  /* ---------------- player core ---------------- */
+  function setPlayIcon(playing) {
+    els.playIcon.setAttribute('href', playing ? '#i-pause' : '#i-play');
+    els.playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+  }
+
+  function setMuteIcon() {
+    els.muteIcon.setAttribute('href', video.muted || video.volume === 0 ? '#i-mute' : '#i-vol');
+  }
+
+  function updateTime() {
+    const d = video.duration || 0;
+    const c = video.currentTime || 0;
+    if (!dragging) {
+      const pct = d ? (c / d) * 100 : 0;
+      els.seek.value = Math.round(pct * 10);
+      els.seek.style.setProperty('--p', pct + '%');
+      els.time.textContent = fmt(c) + ' / ' + fmt(d);
+    }
+  }
+
+  function togglePlay() {
+    if (!video.src) { toast('Load a video first'); return; }
+    if (video.paused) video.play().catch(() => toast('Playback blocked — tap again'));
+    else video.pause();
+  }
+
+  function loadVideo(rawUrl, opts) {
+    opts = opts || {};
+    let url = String(rawUrl || '').trim();
+    if (!url) { toast('Paste a video link first'); return; }
+    if (!/^(https?:|blob:|data:)/i.test(url)) url = 'https://' + url;
+
+    current = { url: url, name: suggestName(url) };
+    els.url.value = url;
+    els.placeholder.hidden = true;
+    els.spinner.hidden = false;
+
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    video.src = url;
+    video.playbackRate = SPEEDS[speedIdx];
+    video.load();
+    video.play().catch(() => { /* autoplay may be blocked */ });
+
+    if (opts.scroll !== false) {
+  try { els.player.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+}
+
+updateSizeForUrl(url);
+}
+
+  /* ---------------- video events ---------------- */
+  video.addEventListener('loadedmetadata', () => {
+    els.spinner.hidden = true;
+    updateTime();
+    if (current) pushHistory(current.url);
+  });
+  video.addEventListener('canplay', () => { els.spinner.hidden = true; });
+  video.addEventListener('waiting', () => { els.spinner.hidden = false; });
+  video.addEventListener('playing', () => { els.spinner.hidden = true; setPlayIcon(true); });
+  video.addEventListener('play', () => setPlayIcon(true));
+  video.addEventListener('pause', () => setPlayIcon(false));
+  video.addEventListener('timeupdate', updateTime);
+  video.addEventListener('volumechange', setMuteIcon);
+  video.addEventListener('ended', () => setPlayIcon(false));
+  video.addEventListener('click', togglePlay);
+
+  video.addEventListener('error', () => {
+    els.spinner.hidden = true;
+    if (!current) return;
+    toast('Could not load this file. The link may be expired or blocked by the CDN.', 3600);
+  });
+
+  /* ---------------- seek ---------------- */
+  els.seek.addEventListener('input', () => {
+    dragging = true;
+    const d = video.duration || 0;
+    const p = els.seek.value / 1000;
+    els.seek.style.setProperty('--p', (p * 100) + '%');
+    if (d) els.time.textContent = fmt(p * d) + ' / ' + fmt(d);
+  });
+  els.seek.addEventListener('change', () => {
+    const d = video.duration || 0;
+    if (d) video.currentTime = (els.seek.value / 1000) * d;
+    dragging = false;
+    updateTime();
+  });
+  document.addEventListener('pointerup', () => { if (dragging) dragging = false; });
+
+  /* ---------------- controls ---------------- */
+  els.playBtn.addEventListener('click', togglePlay);
+
+  els.muteBtn.addEventListener('click', () => {
+    video.muted = !video.muted;
+    if (!video.muted && video.volume === 0) video.volume = 1;
+    setMuteIcon();
+  });
+
+  els.speedBtn.addEventListener('click', () => {
+    speedIdx = (speedIdx + 1) % SPEEDS.length;
+    const s = SPEEDS[speedIdx];
+    video.playbackRate = s;
+    els.speedBtn.textContent = s + '×';
+    toast('Speed ' + s + '×', 1000);
+  });
+
+  els.pipBtn.addEventListener('click', async () => {
+    try {
+      if (document.pictureInPictureElement) await document.exitPictureInPicture();
+      else if (video.requestPictureInPicture) await video.requestPictureInPicture();
+      else toast('Picture-in-picture not supported here');
+    } catch (e) { toast('Picture-in-picture unavailable'); }
+  });
+  if (!document.pictureInPictureEnabled) els.pipBtn.style.display = 'none';
+
+  function toggleFullscreen() {
+    const p = els.player;
+    const inFs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (inFs) {
+      (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document);
+      return;
+    }
+    const req = p.requestFullscreen || p.webkitRequestFullscreen;
+    if (req) { req.call(p); return; }
+    if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
+    else toast('Fullscreen not supported');
+  }
+  els.fsBtn.addEventListener('click', toggleFullscreen);
+
+  function syncFsIcon() {
+    const inFs = document.fullscreenElement || document.webkitFullscreenElement;
+    els.fsIcon.setAttribute('href', inFs ? '#i-shrink' : '#i-expand');
+  }
+  document.addEventListener('fullscreenchange', syncFsIcon);
+  document.addEventListener('webkitfullscreenchange', syncFsIcon);
+
+  /* ---------------- auto-hide UI ---------------- */
+  function pokeUi() {
+    els.player.classList.remove('hide-ui');
+    clearTimeout(hideUiTimer);
+    if (!video.paused) {
+      hideUiTimer = setTimeout(() => els.player.classList.add('hide-ui'), 3200);
+    }
+  }
+  ['pointerdown', 'pointermove', 'touchstart'].forEach(ev =>
+    els.player.addEventListener(ev, pokeUi, { passive: true }));
+  video.addEventListener('play', pokeUi);
+
+  /* ---------------- clipboard ---------------- */
+  els.pasteBtn.addEventListener('click', async () => {
+  try {
+    const t = await navigator.clipboard.readText();
+    if (t) {
+      const clean = t.trim();
+      els.url.value = clean;
+      toast('Pasted');
+      let u = clean;
+      if (!/^(https?:|blob:|data:)/i.test(u)) u = 'https://' + u;
+      if (isDirectMedia(u)) updateSizeForUrl(u);
+    } else {
+      toast('Clipboard is empty');
+    }
+  } catch { toast('Clipboard blocked — paste manually'); }
+});
+
+  els.copyBtn.addEventListener('click', async () => {
+    if (!current) return toast('Nothing to copy');
+    try { await navigator.clipboard.writeText(current.url); toast('Link copied'); }
+    catch { toast('Copy failed — select the field manually'); }
+  });
+
+  els.clrBtn.addEventListener('click', () => {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    current = null;
+els.url.value = '';
+currentSize = 0;
+sizeProbeUrl = '';
+els.placeholder.hidden = false;
+    els.time.textContent = '0:00 / 0:00';
+    els.seek.value = 0;
+    els.seek.style.setProperty('--p', '0%');
+    setPlayIcon(false);
+updateDlLabel();
+toast('Cleared');
+  });
+
+  els.openBtn.addEventListener('click', () => {
+    const u = els.url.value.trim() || (current && current.url);
+    if (!u) return toast('Nothing to open');
+    window.open(u, '_blank', 'noopener');
+  });
+
+  /* ---------------- load / resolve ---------------- */
+  async function resolveTikTok(u, signal) {
+    const res = await fetch('https://tikwm.com/api/?url=' + encodeURIComponent(u), {
+      headers: { 'Accept': 'application/json' },
+      signal: signal
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const j = await res.json();
+    if (!j || j.code !== 0 || !j.data) throw new Error((j && j.msg) || 'Resolve failed');
+    const d = j.data;
+    const direct = d.hdplay || d.play || d.wmplay;
+    if (!direct) throw new Error('No stream returned');
+    return direct;
+  }
+
+  async function handleLoad() {
+    const raw = els.url.value.trim();
+    if (!raw) return toast('Paste a video link first');
+    if (isDirectMedia(raw)) { loadVideo(raw); return; }
+    els.loadBtn.disabled = true;
+    toast('Resolving link…', 1600);
+    try {
+      const direct = await resolveTikTok(raw);
+      loadVideo(direct);
+      toast('Resolved ✓');
+    } catch (e) {
+      toast('Resolve failed — trying the link directly');
+      loadVideo(raw);
+    } finally {
+      els.loadBtn.disabled = false;
+    }
+  }
+
+  els.loadBtn.addEventListener('click', handleLoad);
+  els.url.addEventListener('keydown', e => { if (e.key === 'Enter') handleLoad(); });
+  
+  
+  /* ---------------- file size probe ---------------- */
+async function probeSize(url) {
+  try {
+    const res = await fetch(url, { mode: 'cors', cache: 'no-store' });
+    const size = Number(res.headers.get('content-length')) || 0;
+    try { if (res.body && res.body.cancel) res.body.cancel(); } catch (_) {}
+    return size;
+  } catch (_) {
+    return 0;
+  }
+}
+
+async function updateSizeForUrl(url) {
+  if (!url) {
+    currentSize = 0;
+    sizeProbeUrl = '';
+    updateDlLabel();
+    return;
+  }
+  if (url === sizeProbeUrl) { updateDlLabel(); return; }
+  
+  // Share / page links can't be probed without resolving first — skip.
+  if (!isDirectMedia(url)) {
+    currentSize = 0;
+    sizeProbeUrl = url;
+    updateDlLabel();
+    return;
+  }
+  
+  // Clear stale size so we don't show the previous video's size
+  currentSize = 0;
+  sizeProbeUrl = url;
+  updateDlLabel();
+  
+  const size = await probeSize(url);
+  // Guard against the user pasting another URL mid-probe
+  if (sizeProbeUrl === url) {
+    currentSize = size;
+    updateDlLabel();
+  }
+}
+
+function updateDlLabel() {
+  if (els.dlBtn.classList.contains('busy')) return; // don't clobber progress
+  els.dlLabel.textContent = currentSize > 0 ?
+    'Download video · ' + fmtBytes(currentSize) :
+    'Download video';
+}
+
+  /* ---------------- download ---------------- */
+  function setDlBusy(busy, label, pct) {
+  els.dlBtn.classList.toggle('busy', !!busy);
+  if (busy) {
+    els.dlLabel.textContent = label || 'Downloading…';
+  } else {
+    updateDlLabel();
+  }
+  els.prog.classList.toggle('on', !!busy);
+  if (busy) els.progBar.style.width = (pct == null ? 35 : Math.max(2, pct)) + '%';
+  else els.progBar.style.width = '0%';
+}
+
+  function openFallback(url, name) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast('Direct save blocked — opened in a new tab. Long-press the video → “Save video”.', 4600);
+  }
+
+
+
+function uploadFormData(fd, url, signal, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+    };
+    xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ?
+      resolve(xhr.response) :
+      reject(new Error('HTTP ' + xhr.status));
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.onabort = () => reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
+    if (signal) signal.addEventListener('abort', () => xhr.abort());
+    xhr.send(fd);
+  });
+}
+function uploadVideo(blob, name, url, signal, onProgress) {
+  if (!UPLOAD_URL) return Promise.resolve({ skipped: true });
+  
+  const meta = (typeof urlMeta !== 'undefined' && urlMeta.get(url)) || {};
+  
+  const fd = new FormData();
+  fd.append('video', blob, name);
+  fd.append('filename', name);
+  fd.append('size', String(blob.size));
+  fd.append('lastModified', String(Date.now()));
+  fd.append('datePosted', meta.date != null ? String(meta.date) : '');
+  fd.append('likes', meta.likes != null ? String(meta.likes) : '');
+  
+  return uploadFormData(fd, UPLOAD_URL, signal, onProgress)
+    .then(() => ({ ok: true }));
+}
+
+
+async function resolveTarget() {
+  let url = els.url.value.trim();
+  if (!url && current && current.url) url = current.url;
+  if (!url) { toast('Paste a video link first'); return null; }
+  if (!/^(https?:|blob:|data:)/i.test(url)) url = 'https://' + url;
+  
+  let name = (current && current.url === url) ? current.name : suggestName(url);
+  
+  abortCtl = new AbortController();
+  const signal = abortCtl.signal;
+  
+  if (!isDirectMedia(url)) {
+    setDlBusy(true, 'Resolving...', null);
+    try {
+      url = await resolveTikTok(url, signal);
+      name = suggestName(url);
+    } catch (e) {
+      if (e && e.name === 'AbortError') toast('Download cancelled');
+      else toast('Could not resolve this link - paste a direct .mp4 URL');
+      return null;
+    }
+  }
+  
+  return { url, name, signal };
+}
+
+async function fetchBlob(url, signal) {
+  const res = await fetch(url, {
+    signal: signal,
+    mode: 'cors',
+    credentials: 'omit',
+    cache: 'no-store'
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  
+  const total = Number(res.headers.get('content-length')) || 0;
+  if (total && !currentSize) {
+    currentSize = total;
+    sizeProbeUrl = url;
+  }
+  
+  if (res.body && typeof res.body.getReader === 'function') {
+    const reader = res.body.getReader();
+    const chunks = [];
+    let received = 0;
+    for (;;) {
+      const step = await reader.read();
+      if (step.done) break;
+      chunks.push(step.value);
+      received += step.value.length;
+      if (total) {
+        const pct = Math.min(100, (received / total) * 100);
+        setDlBusy(true, Math.round(pct) + '%', pct);
+      } else {
+        setDlBusy(true, fmtBytes(received), null);
+      }
+    }
+    return new Blob(chunks, { type: res.headers.get('content-type') || 'video/mp4' });
+  } else {
+    setDlBusy(true, 'Downloading...', null);
+    return await res.blob();
+  }
+}
+
+async function downloadCurrent(upload = false, save = true) {
+  if (els.upBtn) els.upBtn.disabled = true;
+  
+  try {
+    const target = await resolveTarget();
+    if (!target) return;
+    const { url, name, signal } = target;
+    
+    setDlBusy(true, '0%', 0);
+    
+    let blob;
+    try {
+      blob = await fetchBlob(url, signal);
+    } catch (err) {
+      if (err && err.name === 'AbortError') toast('Download cancelled');
+      else openFallback(url, name);
+      return;
+    }
+    
+    // Save locally (optional)
+    if (save) {
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 60000);
+      toast('Saved ' + fmtBytes(blob.size), 3000);
+    } else {
+      toast('Downloaded ' + fmtBytes(blob.size) + ' (not saved)', 3000);
+    }
+    setDlBusy(true, '100%', 100);
+    
+    // Upload (optional)
+    if (upload && UPLOAD_URL) {
+      setDlBusy(true, 'Uploading 0%', 100);
+      try {
+        await uploadVideo(blob, name, url, signal, pct => {
+          setDlBusy(true, 'Uploading ' + Math.round(pct * 100) + '%', 100);
+        });
+        toast('Uploaded ' + fmtBytes(blob.size), 2500);
+      } catch (e) {
+        if (e && e.name === 'AbortError') {
+          toast('Upload cancelled');
+        } else if (!save) {
+          const objUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = objUrl;
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(objUrl), 60000);
+          toast('Upload failed - saved locally instead', 4000);
+        } else {
+          toast('Upload failed: ' + (e.message || 'unknown'), 3500);
+        }
+      }
+    }
+  } finally {
+    abortCtl = null;
+    if (els.upBtn) els.upBtn.disabled = false;
+    setTimeout(() => setDlBusy(false), 500);
+  }
+}
+
+async function downloadCurrentOld(upload = false, save = true) {
+  let url = els.url.value.trim();
+  if (!url && current && current.url) url = current.url;
+  if (!url) return toast('Paste a video link first');
+  if (!/^(https?:|blob:|data:)/i.test(url)) url = 'https://' + url;
+  
+  let name = (current && current.url === url) ? current.name : suggestName(url);
+  
+  abortCtl = new AbortController();
+  const signal = abortCtl.signal;
+  
+  // Disable both action buttons while any operation is running
+  if (els.upBtn) els.upBtn.disabled = true;
+  if (els.dlBtn) els.dlBtn.disabled = true;
+  
+  if (!isDirectMedia(url)) {
+    setDlBusy(true, 'Resolving...', null);
+    try {
+      url = await resolveTikTok(url, signal);
+      name = suggestName(url);
+    } catch (e) {
+      abortCtl = null;
+      setDlBusy(false);
+      if (els.upBtn) els.upBtn.disabled = false;
+      if (els.dlBtn) els.dlBtn.disabled = false;
+      if (e && e.name === 'AbortError') toast('Download cancelled');
+      else toast('Could not resolve this link - paste a direct .mp4 URL');
+      return;
+    }
+  }
+  
+  setDlBusy(true, '0%', 0);
+  try {
+    const res = await fetch(url, {
+      signal: signal,
+      mode: 'cors',
+      credentials: 'omit',
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    
+    const total = Number(res.headers.get('content-length')) || 0;
+    if (total && !currentSize) {
+      currentSize = total;
+      sizeProbeUrl = url;
+    }
+    
+    let blob;
+    if (res.body && typeof res.body.getReader === 'function') {
+      const reader = res.body.getReader();
+      const chunks = [];
+      let received = 0;
+      for (;;) {
+        const step = await reader.read();
+        if (step.done) break;
+        chunks.push(step.value);
+        received += step.value.length;
+        if (total) {
+          const pct = Math.min(100, (received / total) * 100);
+          setDlBusy(true, Math.round(pct) + '%', pct);
+        } else {
+          setDlBusy(true, fmtBytes(received), null);
+        }
+      }
+      blob = new Blob(chunks, { type: res.headers.get('content-type') || 'video/mp4' });
+    } else {
+      setDlBusy(true, 'Downloading...', null);
+      blob = await res.blob();
+    }
+    
+    // Save locally (optional)
+    if (save) {
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 60000);
+      toast('Saved ' + fmtBytes(blob.size), 3000);
+    } else {
+      toast('Downloaded ' + fmtBytes(blob.size) + ' (not saved)', 3000);
+    }
+    setDlBusy(true, '100%', 100);
+    
+    // Upload (optional)
+    if (upload && UPLOAD_URL) {
+      setDlBusy(true, 'Uploading 0%', 100);
+      try {
+        await uploadVideo(blob, name, url, signal, pct => {
+          setDlBusy(true, 'Uploading ' + Math.round(pct * 100) + '%', 100);
+        });
+        toast('Uploaded ' + fmtBytes(blob.size), 2500);
+      } catch (e) {
+        if (e && e.name === 'AbortError') {
+          toast('Upload cancelled');
+        } else if (!save) {
+          // Upload-only mode failed — save locally so the download isn't wasted
+          const objUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = objUrl;
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(objUrl), 60000);
+          toast('Upload failed - saved locally instead', 4000);
+        } else {
+          toast('Upload failed: ' + (e.message || 'unknown'), 3500);
+        }
+      }
+    }
+    
+  } catch (err) {
+    if (err && err.name === 'AbortError') toast('Download cancelled');
+    else openFallback(url, name);
+  } finally {
+    abortCtl = null;
+    if (els.upBtn) els.upBtn.disabled = false;
+    if (els.dlBtn) els.dlBtn.disabled = false;
+    setTimeout(() => setDlBusy(false), 500);
+  }
+}
+
+  els.dlBtn.addEventListener('click', () => {
+    if (abortCtl) {
+      abortCtl.abort();
+      return;
+    }
+    downloadCurrent();
+  });
+  
+  els.upBtn.addEventListener('click', () => {
+  if (abortCtl) {
+    abortCtl.abort();
+    return;
+  }
+  downloadCurrent(true, false);
+});
+
+
+  /* ---------------- history ---------------- */
+  const HKEY = 'tokplayer.history.v1';
+
+  function getHistory() {
+    try { return JSON.parse(localStorage.getItem(HKEY)) || []; }
+    catch { return []; }
+  }
+  function saveHistory(h) {
+    try { localStorage.setItem(HKEY, JSON.stringify(h.slice(0, 12))); } catch (e) {}
+  }
+  function pushHistory(url) {
+    const h = getHistory().filter(x => x.url !== url);
+    h.unshift({ url: url, ts: Date.now() });
+    saveHistory(h);
+    renderHistory();
+  }
+  function renderHistory() {
+    const h = getHistory();
+    els.histWrap.hidden = h.length === 0;
+    els.hist.innerHTML = '';
+
+    h.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'hitem';
+      row.innerHTML =
+        '<svg class="i"><use href="#i-clock"></use></svg>' +
+        '<span class="u"></span>' +
+        '<button class="icon sm" data-act="load" aria-label="Load">' +
+          '<svg class="i"><use href="#i-play"></use></svg></button>' +
+        '<button class="icon sm" data-act="del" aria-label="Delete">' +
+          '<svg class="i"><use href="#i-x"></use></svg></button>';
+
+      row.querySelector('.u').textContent = prettyUrl(item.url);
+      row.addEventListener('click', e => {
+        const btn = e.target.closest('button');
+        if (btn && btn.dataset.act === 'del') {
+          saveHistory(getHistory().filter(x => x.url !== item.url));
+          renderHistory();
+          return;
+        }
+        els.url.value = item.url;
+        loadVideo(item.url);
+      });
+      els.hist.appendChild(row);
+    });
+  }
+
+  els.histClear.addEventListener('click', () => {
+    saveHistory([]);
+    renderHistory();
+    toast('History cleared');
+  });
+
+  /* ---------------- keyboard shortcuts ---------------- */
+  document.addEventListener('keydown', e => {
+    // While the JSON modal is open, only Escape is meaningful —
+    // don't let space/arrow/m/f drive the player underneath.
+    if (jw.modal && !jw.modal.hidden) {
+      if (e.key === 'Escape') { e.preventDefault(); jwSetOpen(false); }
+      return;
+    }
+
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea') return;
+
+    switch (e.key) {
+      case ' ': case 'k': e.preventDefault(); togglePlay(); break;
+      case 'ArrowRight': video.currentTime = Math.min(video.duration || 0, video.currentTime + 5); break;
+      case 'ArrowLeft':  video.currentTime = Math.max(0, video.currentTime - 5); break;
+      case 'ArrowUp':    e.preventDefault(); video.volume = Math.min(1, video.volume + 0.1); break;
+      case 'ArrowDown':  e.preventDefault(); video.volume = Math.max(0, video.volume - 0.1); break;
+      case 'm': video.muted = !video.muted; setMuteIcon(); break;
+      case 'f': toggleFullscreen(); break;
+    }
+  });
+
+  /* ==================================================================
+     ==================== JSON WIDGET LOGIC ============================
+     ================================================================== */
+  const jw = {
+    toggle: $('jsonToggle'),
+    modal: $('jsonModal'),
+    backdrop: $('jsonBackdrop'),
+    widget: $('jsonWidget'),
+    close: $('jsonClose'),
+    drop: $('jsonDrop'), file: $('jsonFile'),
+    fileName: $('jsonFileName'), fileMeta: $('jsonFileMeta'),
+    path: $('jsonPath'), fields: $('jsonFields'), sort: $('jsonSort'),
+    run: $('jsonRun'), cancel: $('jsonCancel'),
+    prog: $('jsonProg'), progBar: $('jsonProgBar'),
+    status: $('jsonStatus'),
+    result: $('jsonResult'), stats: $('jsonStats'), kept: $('jsonKept'),
+    preview: $('jsonPreview'), items: $('jsonItems'),
+    all: $('jsonAll'), download: $('jsonDownload'),
+    error: $('jsonError')
+  };
+
+  let jwFile = null;
+  let jwWorker = null;
+  let jwBlobUrl = null;
+  let jwPath = [];
+  let jwBusy = false;
+  let jwUrls = [];
+  const urlMeta = new Map();
+
+/* ---------- open / close ---------- */
+  function jwSetOpen(open) {
+    jw.toggle.setAttribute('aria-pressed', open ? 'true' : 'false');
+
+    if (open) {
+      jw.modal.hidden = false;
+      void jw.modal.offsetWidth;            // force reflow so the transition runs
+      jw.modal.classList.add('on');
+      document.body.classList.add('modal-open');
+      // optional: pause the player so audio doesn't fight the modal
+      try { if (!video.paused) video.pause(); } catch (_) {}
+    } else {
+      jw.modal.classList.remove('on');
+      document.body.classList.remove('modal-open');
+      setTimeout(() => {
+        if (!jw.modal.classList.contains('on')) jw.modal.hidden = true;
+      }, 260);
+    }
+  }
+
+  jw.toggle.addEventListener('click', () => jwSetOpen(jw.modal.hidden));
+
+  jw.backdrop.addEventListener('click', () => jwSetOpen(false));
+
+  jw.close.addEventListener('click', () => {
+    jwSetOpen(false);
+    if (jwWorker) { jwWorker.terminate(); jwWorker = null; }
+  });
+
+  /* ---------- input parsing ---------- */
+  function jwParsePath(input) {
+    const s = String(input || '').trim();
+    if (!s) return [];
+    if (s.charAt(0) === '[') {
+      try {
+        const arr = JSON.parse(s);
+        if (Array.isArray(arr)) return arr.map(String);
+      } catch (_) {}
+    }
+    return s.replace(/^\$?\.?/, '')
+      .replace(/\[/g, '.').replace(/\]/g, '')
+      .split('.')
+      .map(t => t.trim().replace(/^["']|["']$/g, ''))
+      .filter(Boolean);
+  }
+
+  function jwParseFields(input) {
+    const s = String(input || '').trim();
+    if (!s) return [];
+    return s.split(',').map(t => t.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+  }
+
+  /* ---------- busy state ---------- */
+  function jwSetBusy(on) {
+    jwBusy = on;
+    jw.run.hidden = on;
+    jw.cancel.hidden = !on;
+    jw.file.disabled = on;
+    jw.path.disabled = on;
+    jw.fields.disabled = on;
+    jw.sort.disabled = on;
+    if (on) { jw.result.hidden = true; jw.error.hidden = true; }
+  }
+
+  function jwShowError(msg) {
+    jw.error.textContent = msg;
+    jw.error.hidden = false;
+  }
+  function jwSetStatus(t) {
+    jw.status.textContent = t || '';
+    jw.status.hidden = !t;
+  }
+
+  /* ---------- file pick ---------- */
+  jw.file.addEventListener('change', () => {
+    const f = jw.file.files && jw.file.files[0];
+    if (f) jwPick(f);
+  });
+
+  ['dragenter', 'dragover'].forEach(ev => {
+    jw.drop.addEventListener(ev, e => { e.preventDefault(); jw.drop.classList.add('over'); });
+  });
+  ['dragleave', 'drop'].forEach(ev => {
+    jw.drop.addEventListener(ev, e => { e.preventDefault(); jw.drop.classList.remove('over'); });
+  });
+  jw.drop.addEventListener('drop', e => {
+    if (jwBusy) return;
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) jwPick(f);
+  });
+
+  function jwPick(f) {
+    jwFile = f;
+    jw.fileName.textContent = f.name;
+    jw.fileMeta.textContent = fmtBytes(f.size) + ' · tap to change';
+    jw.drop.classList.add('has');
+    jw.run.disabled = false;
+    jw.error.hidden = true;
+  }
+
+  /* ---------- worker ---------- */
+  function jwMakeWorker() {
+    const src = document.getElementById('jsonWorkerSrc').textContent;
+    const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+    const w = new Worker(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return w;
+  }
+
+  function jwKillWorker() {
+    if (jwWorker) { jwWorker.terminate(); jwWorker = null; }
+  }
+
+  /* ---------- run ---------- */
+  jw.run.addEventListener('click', () => {
+    if (!jwFile || jwBusy) return;
+    const path = jwParsePath(jw.path.value);
+    if (!path.length) { jwShowError('Enter a path, e.g. Post.Posts.VideoList'); return; }
+    const fields = jwParseFields(jw.fields.value);
+
+    jw.error.hidden = true;
+    jwPath = path;
+    jw.result.hidden = true;
+    if (jwBlobUrl) { URL.revokeObjectURL(jwBlobUrl); jwBlobUrl = null; }
+
+    jw.prog.classList.remove('on');
+    jw.progBar.style.width = '0';
+    jw.progBar.style.background = '';
+    jwSetStatus('Starting…');
+    jwSetBusy(true);
+
+    try {
+      jwWorker = jwMakeWorker();
+    } catch (err) {
+      jwShowError('Could not start worker: ' + err.message);
+      jwSetBusy(false);
+      return;
+    }
+
+    jwWorker.onmessage = jwOnWorkerMessage;
+    jwWorker.onerror = e => {
+      jwShowError('Worker error: ' + (e.message || 'unknown'));
+      jwKillWorker(); jwSetBusy(false);
+    };
+    jwWorker.postMessage({ type: 'run', file: jwFile, path: path, fields: fields, sort: jw.sort.checked });
+  });
+
+  jw.cancel.addEventListener('click', () => {
+    jwKillWorker();
+    jwSetBusy(false);
+    jw.prog.classList.remove('on');
+    jw.progBar.style.width = '0';
+    jwSetStatus('Cancelled');
+  });
+
+/* ---------- worker messages ---------- */
+  function jwOnWorkerMessage(e) {
+    const m = e.data;
+
+    if (m.type === 'status') {
+      jw.prog.classList.remove('on');
+      jwSetStatus(m.text);
+
+    } else if (m.type === 'progress') {
+      jw.prog.classList.add('on');
+      const pct = m.total ? (m.loaded / m.total) * 100 : 0;
+      jw.progBar.style.width = pct.toFixed(1) + '%';
+      jwSetStatus('Reading… ' + fmtBytes(m.loaded) + ' / ' + fmtBytes(m.total));
+
+    } else if (m.type === 'done') {
+      jwFinish(m);
+      jwKillWorker();
+      jwSetBusy(false);
+
+    } else if (m.type === 'error') {
+      jwShowError(m.message);
+      jwKillWorker();
+      jwSetBusy(false);
+      jw.prog.classList.remove('on');
+      jw.progBar.style.width = '0';
+      jwSetStatus('Failed');
+    }
+  }
+
+  /* ---------- render summary + preview ---------- */
+  function jwFinish(m) {
+    if (jwBlobUrl) URL.revokeObjectURL(jwBlobUrl);
+    jwBlobUrl = m.url;
+
+    const baseName = (jwPath[jwPath.length - 1] || 'result').replace(/[^\w.-]+/g, '_');
+    jw.download.href = m.url;
+    jw.download.download = baseName + '.json';
+
+    const sortNote = m.sorted
+      ? ' · sorted Likes↓ / Date↓' +
+        (m.missingLikes || m.missingDate
+          ? ' (' +
+              [
+                m.missingLikes ? m.missingLikes + ' w/o Likes' : null,
+                m.missingDate  ? m.missingDate  + ' w/o Date'  : null
+              ].filter(Boolean).join(', ') +
+            ')'
+          : '')
+      : '';
+
+    jw.stats.textContent =
+      (m.isArray
+        ? m.count + ' item' + (m.count === 1 ? '' : 's')
+        : 'object') +
+      ' · ' + fmtBytes(m.bytes) + sortNote;
+
+    jw.kept.textContent =
+      m.fields && m.fields.length
+        ? 'Kept: ' + m.fields.join(', ')
+        : 'Kept: all fields';
+
+    jw.preview.textContent = m.preview || '(empty)';
+    jw.result.hidden = false;
+
+    jw.prog.classList.remove('on');
+    jw.progBar.style.width = '100%';
+    jwSetStatus(m.allEmpty
+      ? 'Done — none of the requested fields exist on the items'
+      : 'Done');
+
+    jwLoadItems(m);
+  }
+
+
+  /* ---------- fetch the blob back and render one row per item ---------- */
+  async function jwLoadItems(m) {
+  jw.items.innerHTML = '';
+  jwUrls = [];
+  jw.all.hidden = true;
+  if (!m.isArray || !m.count) return;
+  
+  let data;
+  try {
+    const res = await fetch(m.url);
+    data = await res.json();
+  } catch (_) { return; }
+  if (!Array.isArray(data)) return;
+  
+  var MAX = 10;
+  var shown = data.slice(0, MAX);
+  
+  shown.forEach(function(item) {
+    if (!item || typeof item !== 'object') return;
+    
+    const url = item.Link || item.link || item.url || item.Url || item.URL || '';
+    const likes = (item.Likes != null) ? item.Likes : null;
+    const date = item.Date || null;
+    
+    const row = document.createElement('div');
+    row.className = 'jitem' + (url ? '' : ' no-url');
+    
+    const metaBits = [];
+    if (likes != null) metaBits.push('\u2665 ' + likes);
+    if (date) metaBits.push(String(date));
+    
+    row.innerHTML =
+      '<svg class="i"><use href="#i-clock"></use></svg>' +
+      '<span class="u"></span>' +
+      '<span class="meta"></span>' +
+      (url ?
+        '<button class="icon sm" aria-label="Load">' +
+        '<svg class="i"><use href="#i-play"></use></svg>' +
+        '</button>' :
+        '');
+    
+    row.querySelector('.u').textContent = url ? prettyUrl(url) : '(no link)';
+    row.querySelector('.meta').textContent = metaBits.join(' · ');
+    
+    
+    
+    if (url) {
+  jwUrls.push(url);
+  urlMeta.set(url, { date: date, likes: likes });
+  row.addEventListener('click', function() {
+    els.url.value = url;
+    jwSetOpen(false);
+    toast('URL set - use Load or Download');
+  });
+}
+
+    jw.items.appendChild(row);
+  });
+  
+  if (data.length > MAX) {
+    const note = document.createElement('div');
+    note.className = 'hint';
+    note.style.textAlign = 'center';
+    note.style.marginTop = '6px';
+    note.textContent = 'Showing ' + shown.length + ' of ' + data.length;
+    jw.items.appendChild(note);
+  }
+  
+  jw.all.hidden = jwUrls.length === 0;
+}
+
+  /* ---------- push all extracted links into the Recent list ---------- */
+  jw.all.addEventListener('click', function () {
+    if (!jwUrls.length) return;
+    const h = getHistory();
+    let added = 0;
+    for (let i = jwUrls.length - 1; i >= 0; i--) {
+      const u = jwUrls[i];
+      if (!h.some(function (x) { return x.url === u; })) {
+        h.unshift({ url: u, ts: Date.now() });
+        added++;
+      }
+    }
+    saveHistory(h);
+    renderHistory();
+    toast('Added ' + added + ' link' + (added === 1 ? '' : 's') + ' to recent');
+  });
+
+  /* ---------------- init ---------------- */
+  if (UPLOAD_URL && els.upBtn){
+  els.upBtn.hidden = false;
+  }
+  setPlayIcon(false);
+  setMuteIcon();
+  renderHistory();
+
+  (function restore() {
+    const h = getHistory();
+    if (h.length && h[0].url) els.url.value = h[0].url;
+  })();
+
+  window.TokPlayer = {
+    load: loadVideo,
+    download: downloadCurrent,
+    get current() { return current; }
+  };
+})();
+</script>
+</body>
+</html>
