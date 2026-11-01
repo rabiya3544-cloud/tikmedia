@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0f1115">
+<title>JSON Path Extract</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+:root{
+  --bg:#0f1115;--card:#171a21;--line:#272d3a;--fg:#e8ecf3;--muted:#8b95a7;
+  --accent:#4c8dff;--ok:#35c48a;--err:#ff5c72;--warn:#f5b544;--radius:14px;color-scheme:dark;
+}
+@media (prefers-color-scheme:light){
+  :root{--bg:#f2f5fa;--card:#fff;--line:#e0e5ee;--fg:#0f172a;--muted:#64748b;color-scheme:light}
+}
+html,body{margin:0}
+body{
+  background:var(--bg);color:var(--fg);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  padding:calc(env(safe-area-inset-top) + 14px) 14px calc(env(safe-area-inset-bottom) + 26px);
+  max-width:640px;margin:0 auto;-webkit-text-size-adjust:100%;
+}
+
+/* ---------- header ---------- */
+.head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.brand{min-width:0;flex:1}
+h1{font-size:17px;margin:0 0 3px;letter-spacing:.2px}
+.sub{font-size:12px;color:var(--muted);margin:0}
+.hbtn{
+  flex:0 0 auto;width:38px;height:38px;border-radius:11px;
+  display:grid;place-items:center;background:var(--card);
+  border:1px solid var(--line);color:var(--muted);text-decoration:none;
+  transition:transform .12s, color .15s, border-color .15s, background .15s;
+}
+.hbtn:hover{color:var(--accent);border-color:var(--accent)}
+.hbtn:active{transform:scale(.92)}
+.hbtn svg{width:20px;height:20px;fill:currentColor;display:block}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:10px}
+.drop{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  border:1.5px dashed var(--line);border-radius:var(--radius);padding:22px 14px;
+  text-align:center;cursor:pointer;transition:.15s;margin-bottom:10px;background:var(--card);
+}
+.drop:active,.drop.over{background:rgba(76,141,255,.09);border-color:var(--accent)}
+.drop.has{border-style:solid;border-color:rgba(53,196,138,.55)}
+.drop strong{font-size:14px;word-break:break-all}
+.drop small{font-size:12px;color:var(--muted)}
+.field{display:block;margin-bottom:12px}
+.field>span{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;letter-spacing:.5px;text-transform:uppercase;font-weight:600}
+input[type=text]{
+  width:100%;padding:11px 12px;font:16px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;
+}
+input[type=text]:focus{outline:none;border-color:var(--accent)}
+button,.btn{
+  display:block;width:100%;padding:13px;font:inherit;font-weight:600;font-size:15px;
+  border-radius:12px;border:0;background:var(--accent);color:#fff;cursor:pointer;
+  text-align:center;text-decoration:none;
+}
+button:disabled{opacity:.45;pointer-events:none}
+button.ghost,.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--fg)}
+.row{display:flex;gap:8px}
+.check{
+  display:flex;align-items:center;gap:9px;font-size:13.5px;cursor:pointer;
+  padding:2px 0 12px;color:var(--fg);-webkit-tap-highlight-color:transparent;
+}
+.check input{width:19px;height:19px;accent-color:var(--accent);flex:none;margin:0}
+.bar{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin:10px 0 6px}
+.bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s,background .2s}
+.bar.indet>i{width:35%;animation:slide 1.15s infinite ease-in-out}
+@keyframes slide{0%{transform:translateX(-110%)}100%{transform:translateX(320%)}}
+.status{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.stats{font-size:13px;font-weight:600;margin:2px 0 0}
+.kept{font-size:11px;color:var(--muted);margin-top:4px;word-break:break-word}
+pre{
+  margin:9px 0 0;padding:10px;background:var(--bg);border:1px solid var(--line);
+  border-radius:10px;font:12px/1.45 ui-monospace,Menlo,monospace;overflow:auto;
+  max-height:170px;white-space:pre-wrap;word-break:break-word;color:var(--muted);
+}
+.err{color:var(--err);font-size:13px;margin-top:9px;word-break:break-word}
+.warn{color:var(--warn);font-size:12px;margin-top:8px;line-height:1.4}
+.note{font-size:11px;color:var(--muted);text-align:center;line-height:1.5;margin-top:14px}
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div class="brand">
+    <h1>JSON Path Extract</h1>
+    <p class="sub">Pull one array out of a big file, keep the fields you need, sorted by Likes then Date.</p>
+  </div>
+  <a class="hbtn" href="index.html" aria-label="Open Tok Player" title="Tok Player">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+  </a>
+</div>
+
+<label class="drop" id="drop">
+  <input type="file" id="file" accept=".json,application/json" hidden>
+  <strong id="fileName">Choose a JSON file</strong>
+  <small id="fileMeta">Tap to browse · nothing is uploaded</small>
+</label>
+
+<label class="field">
+  <span>Path to array</span>
+  <input type="text" id="path" value="Post.Posts.VideoList"
+         autocapitalize="off" autocorrect="off" spellcheck="false"
+         placeholder="Post.Posts.VideoList or [&quot;a&quot;,&quot;b&quot;]">
+</label>
+
+<label class="field">
+  <span>Fields to keep</span>
+  <input type="text" id="fields" value="Date, Likes, Link, CoverImage"
+         autocapitalize="off" autocorrect="off" spellcheck="false"
+         placeholder="Date, Likes, Link, CoverImage">
+</label>
+
+<label class="check">
+  <input type="checkbox" id="sort" checked>
+  <span>Sort by Likes ↓, then Date ↓</span>
+</label>
+
+<div class="row" style="margin-bottom:10px">
+  <button id="run" disabled>Extract</button>
+  <button id="cancel" class="ghost" hidden>Cancel</button>
+</div>
+
+<div class="card" id="progressBox" hidden>
+  <div class="bar" id="bar"><i id="barFill"></i></div>
+  <div class="status" id="status">…</div>
+</div>
+
+<div class="card" id="resultCard" hidden>
+  <div class="stats" id="resultStats"></div>
+  <div class="kept" id="resultKept"></div>
+  <div class="kept" id="resultSort"></div>
+  <pre id="preview"></pre>
+  <a id="download" class="btn" style="margin-top:10px" download>Download .json</a>
+  <div class="warn" id="warn" hidden></div>
+</div>
+
+<div class="err" id="error" hidden></div>
+
+<p class="note">Only the target subtree is parsed — the rest of the document is skipped.<br>
+Sorting uses the original <code>Likes</code> / <code>Date</code> fields, even if you exclude them from the output.</p>
+
+<!-- ================= WORKER ================= -->
+<script id="workerSrc" type="text/js-worker">
+'use strict';
+let cancelled = false;
+
+self.onmessage = function (e) {
+  const m = e.data;
+  if (m.type === 'run') run(m.file, m.path, m.fields || [], !!m.sort);
+  else if (m.type === 'cancel') cancelled = true;
+};
+
+function post(type, data) {
+  const o = { type: type };
+  if (data) for (const k in data) o[k] = data[k];
+  self.postMessage(o);
+}
+
+async function run(file, path, fields, doSort) {
+  try {
+    post('status', { text: 'Reading file…' });
+    let text = await readFile(file);
+    if (cancelled) return;
+
+    post('status', { text: 'Locating ' + path.join(' › ') + ' …' });
+    const range = locate(text, path);
+    if (!range) throw new Error('Path not found: ' + JSON.stringify(path));
+
+    post('status', { text: 'Parsing ' + fmt(range[1] - range[0]) + ' …' });
+    const slice = text.slice(range[0], range[1]);
+    text = null;
+
+    let value = JSON.parse(slice);
+
+    /* ---- sort first, on the original objects ---- */
+    let missingLikes = 0, missingDate = 0, sorted = false;
+    if (doSort && Array.isArray(value) && value.length > 1) {
+      post('status', { text: 'Sorting ' + value.length + ' items…' });
+      const r = sortArray(value);
+      value = r.items;
+      missingLikes = r.missingLikes;
+      missingDate = r.missingDate;
+      sorted = true;
+    }
+
+    /* ---- then keep only the requested fields ---- */
+    if (fields.length) {
+      post('status', { text: 'Keeping ' + fields.length + ' field' + (fields.length === 1 ? '' : 's') + '…' });
+      value = project(value, fields);
+    }
+
+    const isArray = Array.isArray(value);
+    const count = isArray ? value.length
+                : (value && typeof value === 'object' ? Object.keys(value).length : 0);
+
+    let allEmpty = false;
+    if (fields.length && isArray && count > 0) {
+      allEmpty = true;
+      for (let i = 0; i < count; i++) {
+        const v = value[i];
+        if (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length) { allEmpty = false; break; }
+      }
+    }
+
+    let preview = '';
+    try {
+      preview = JSON.stringify(isArray ? value[0] : value);
+      if (preview && preview.length > 700) preview = preview.slice(0, 700) + '\n…';
+    } catch (_) {}
+
+    post('status', { text: 'Building output…' });
+    const out = JSON.stringify(value, null, 0);
+    value = null;
+    const blob = new Blob([out], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    post('done', {
+      url: url, count: count, isArray: isArray, bytes: blob.size,
+      preview: preview, fields: fields, allEmpty: allEmpty,
+      sorted: sorted, missingLikes: missingLikes, missingDate: missingDate
+    });
+  } catch (err) {
+    post('error', { message: (err && err.message) ? err.message : String(err) });
+  }
+}
+
+/* ================= SORTING ================= */
+/* Likes descending, then Date descending, missing values last.
+   Explicit stable tie-break on original index.               */
+
+function numOf(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  if (typeof v === 'string') {
+    const t = v.trim().replace(/,/g, '');
+    if (!t) return null;
+    const n = Number(t);
+    return isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function tsOf(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  if (typeof v === 'string') {
+    const s = v.trim();
+    if (!s) return null;
+    if (/^\d{10,13}$/.test(s)) {               // bare epoch seconds/ms
+      const n = Number(s);
+      return isFinite(n) ? n : null;
+    }
+    const t = Date.parse(s);
+    return isNaN(t) ? null : t;
+  }
+  return null;
+}
+
+function sortArray(arr) {
+  const wrapped = arr.map(function (v, i) {
+    const obj = (v && typeof v === 'object' && !Array.isArray(v)) ? v : null;
+    return {
+      v: v,
+      i: i,
+      l: obj ? numOf(obj.Likes) : null,
+      d: obj ? tsOf(obj.Date) : null
+    };
+  });
+
+  let missingLikes = 0, missingDate = 0;
+  for (let i = 0; i < wrapped.length; i++) {
+    if (wrapped[i].l === null) missingLikes++;
+    if (wrapped[i].d === null) missingDate++;
+  }
+
+  wrapped.sort(function (a, b) {
+    if (a.l !== b.l) {
+      if (a.l === null) return 1;
+      if (b.l === null) return -1;
+      return b.l - a.l;                        // Likes: high → low
+    }
+    if (a.d !== b.d) {
+      if (a.d === null) return 1;
+      if (b.d === null) return -1;
+      return b.d - a.d;                        // Date: new → old
+    }
+    return a.i - b.i;                          // stable
+  });
+
+  return {
+    items: wrapped.map(function (w) { return w.v; }),
+    missingLikes: missingLikes,
+    missingDate: missingDate
+  };
+}
+
+/* ---------- keep only selected fields ---------- */
+function project(value, fields) {
+  if (Array.isArray(value)) return value.map(function (v) { return projectOne(v, fields); });
+  return projectOne(value, fields);
+}
+
+function projectOne(obj, fields) {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+  const out = {};
+  for (let i = 0; i < fields.length; i++) {
+    const parts = fields[i].split('.');
+    let src = obj, ok = true;
+    for (let p = 0; p < parts.length; p++) {
+      if (src && typeof src === 'object' && parts[p] in src) src = src[parts[p]];
+      else { ok = false; break; }
+    }
+    if (!ok) continue;
+    let dst = out;
+    for (let p = 0; p < parts.length - 1; p++) {
+      if (!dst[parts[p]] || typeof dst[parts[p]] !== 'object') dst[parts[p]] = {};
+      dst = dst[parts[p]];
+    }
+    dst[parts[parts.length - 1]] = src;
+  }
+  return out;
+}
+
+/* ---------- file reading with progress ---------- */
+async function readFile(file) {
+  const total = file.size;
+  if (!file.stream) return await file.text();
+
+  const reader = file.stream().getReader();
+  const dec = new TextDecoder('utf-8');
+  const chunks = [];
+  let loaded = 0, last = 0;
+
+  for (;;) {
+    if (cancelled) { try { reader.cancel(); } catch (_) {} throw new Error('Cancelled'); }
+    const r = await reader.read();
+    if (r.done) break;
+    loaded += r.value.byteLength;
+    chunks.push(dec.decode(r.value, { stream: true }));
+    const t = Date.now();
+    if (t - last > 120) { last = t; post('progress', { loaded: loaded, total: total }); }
+  }
+  chunks.push(dec.decode());
+  post('progress', { loaded: total, total: total });
+  return chunks.join('');
+}
+
+/* ---------- targeted JSON scanner ---------- */
+function locate(text, path) {
+  const n = text.length;
+  let pos = 0;
+  const cc = function (i) { return text.charCodeAt(i); };
+  const isWs = function (c) { return c === 32 || c === 9 || c === 10 || c === 13; };
+
+  function ws() { while (pos < n && isWs(cc(pos))) pos++; }
+
+  function scanString() {
+    pos++;
+    while (pos < n) {
+      const c = cc(pos);
+      if (c === 92) { pos += 2; continue; }
+      if (c === 34) { pos++; return; }
+      pos++;
+    }
+    throw new Error('Unterminated string in JSON');
+  }
+
+  function skipValue() {
+    ws();
+    if (pos >= n) throw new Error('Unexpected end of JSON');
+    const c = cc(pos);
+    if (c === 34) { scanString(); return; }
+    if (c === 123 || c === 91) {
+      let depth = 0;
+      while (pos < n) {
+        const d = cc(pos);
+        if (d === 34) { scanString(); continue; }
+        if (d === 123 || d === 91) depth++;
+        else if (d === 125 || d === 93) { depth--; if (depth === 0) { pos++; return; } }
+        pos++;
+      }
+      throw new Error('Unterminated container in JSON');
+    }
+    while (pos < n) {
+      const d = cc(pos);
+      if (d === 44 || d === 93 || d === 125 || isWs(d)) break;
+      pos++;
+    }
+  }
+
+  function seek(depth) {
+    ws();
+    if (depth === path.length) {
+      const start = pos;
+      skipValue();
+      return [start, pos];
+    }
+    const want = path[depth];
+    const c = cc(pos);
+
+    if (c === 123) {
+      pos++; ws();
+      if (cc(pos) === 125) { pos++; return null; }
+      for (;;) {
+        ws();
+        if (cc(pos) !== 34) throw new Error('Expected a string key at offset ' + pos);
+        const ks = pos + 1;
+        scanString();
+        const raw = text.slice(ks, pos - 1);
+        const key = raw.indexOf('\\') === -1 ? raw : JSON.parse(text.slice(ks - 1, pos));
+        ws();
+        if (cc(pos) !== 58) throw new Error('Expected ":" at offset ' + pos);
+        pos++;
+        if (key === want) {
+          const res = seek(depth + 1);
+          if (res) return res;
+        } else {
+          skipValue();
+        }
+        ws();
+        const d = cc(pos);
+        if (d === 44) { pos++; continue; }
+        if (d === 125) { pos++; return null; }
+        throw new Error('Expected "," or "}" at offset ' + pos);
+      }
+    }
+
+    if (c === 91) {
+      if (!/^\d+$/.test(want)) return null;
+      const idx = Number(want);
+      pos++; ws();
+      if (cc(pos) === 93) { pos++; return null; }
+      let i = 0;
+      for (;;) {
+        if (i === idx) {
+          const res = seek(depth + 1);
+          if (res) return res;
+        } else {
+          skipValue();
+        }
+        ws();
+        const d = cc(pos);
+        if (d === 44) { pos++; i++; continue; }
+        if (d === 93) { pos++; return null; }
+        throw new Error('Expected "," or "]" at offset ' + pos);
+      }
+    }
+    return null;
+  }
+
+  return seek(0);
+}
+
+function fmt(b) {
+  if (b < 1024) return b + ' B';
+  const u = ['KB', 'MB', 'GB', 'TB'];
+  let i = -1;
+  do { b /= 1024; i++; } while (b >= 1024 && i < u.length - 1);
+  return b.toFixed(b < 10 ? 1 : 0) + ' ' + u[i];
+}
+</script>
+
+<!-- ================= APP ================= -->
+<script>
+(function () {
+  'use strict';
+  const $ = function (id) { return document.getElementById(id); };
+
+  const fileInput = $('file'), dropEl = $('drop');
+  const fileNameEl = $('fileName'), fileMetaEl = $('fileMeta');
+  const pathInput = $('path'), fieldsInput = $('fields'), sortInput = $('sort');
+  const runBtn = $('run'), cancelBtn = $('cancel');
+  const progressBox = $('progressBox'), barEl = $('bar'), barFill = $('barFill'), statusEl = $('status');
+  const resultCard = $('resultCard'), resultStats = $('resultStats');
+  const resultKept = $('resultKept'), resultSort = $('resultSort');
+  const previewEl = $('preview'), downloadBtn = $('download'), warnEl = $('warn'), errorEl = $('error');
+
+  let file = null, worker = null, blobUrl = null, currentPath = [], busy = false;
+
+  /* ---------- input parsing ---------- */
+  function parsePath(input) {
+    const s = String(input || '').trim();
+    if (!s) return [];
+    if (s.charAt(0) === '[') {
+      try {
+        const arr = JSON.parse(s);
+        if (Array.isArray(arr)) return arr.map(String);
+      } catch (_) { /* fall through to dot notation */ }
+    }
+    return s.replace(/^\$?\.?/, '')
+      .replace(/\[/g, '.').replace(/\]/g, '')
+      .split('.')
+      .map(function (t) { return t.trim().replace(/^["']|["']$/g, ''); })
+      .filter(Boolean);
+  }
+
+  function parseFields(input) {
+    const s = String(input || '').trim();
+    if (!s) return [];
+    return s.split(',').map(function (t) {
+      return t.trim().replace(/^["']|["']$/g, '');
+    }).filter(Boolean);
+  }
+
+  /* ---------- helpers ---------- */
+  function fmtBytes(b) {
+    if (b < 1024) return b + ' B';
+    const u = ['KB', 'MB', 'GB', 'TB'];
+    let i = -1;
+    do { b /= 1024; i++; } while (b >= 1024 && i < u.length - 1);
+    return b.toFixed(b < 10 ? 1 : 0) + ' ' + u[i];
+  }
+
+  function setStatus(t) { statusEl.textContent = t; }
+  function showError(msg) { errorEl.textContent = msg; errorEl.hidden = false; }
+  function hideError() { errorEl.hidden = true; }
+
+  function setBusy(on) {
+    busy = on;
+    runBtn.hidden = on;
+    cancelBtn.hidden = !on;
+    fileInput.disabled = on;
+    pathInput.disabled = on;
+    fieldsInput.disabled = on;
+    sortInput.disabled = on;
+    if (on) { progressBox.hidden = false; resultCard.hidden = true; }
+  }
+
+  /* ---------- worker plumbing ---------- */
+  function makeWorker() {
+    const src = document.getElementById('workerSrc').textContent;
+    const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+    const w = new Worker(url);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+    return w;
+  }
+
+  function killWorker() {
+    if (worker) { worker.terminate(); worker = null; }
+  }
+
+  /* ---------- file selection ---------- */
+  fileInput.addEventListener('change', function () {
+    const f = fileInput.files && fileInput.files[0];
+    if (f) pick(f);
+  });
+
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.add('over'); });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.remove('over'); });
+  });
+  dropEl.addEventListener('drop', function (e) {
+    if (busy) return;
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) pick(f);
+  });
+
+  function pick(f) {
+    file = f;
+    fileNameEl.textContent = f.name;
+    fileMetaEl.textContent = fmtBytes(f.size) + ' · tap to change';
+    dropEl.classList.add('has');
+    runBtn.disabled = false;
+    hideError();
+  }
+
+  /* ---------- run ---------- */
+  runBtn.addEventListener('click', function () {
+    if (!file || busy) return;
+    const path = parsePath(pathInput.value);
+    if (!path.length) { showError('Enter a path, e.g. Post.Posts.VideoList'); return; }
+    const fields = parseFields(fieldsInput.value);
+
+    hideError();
+    currentPath = path;
+    resultCard.hidden = true;
+    if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
+
+    barEl.classList.remove('indet');
+    barFill.style.width = '0';
+    barFill.style.background = '';
+    setStatus('Starting…');
+    setBusy(true);
+
+    try {
+      worker = makeWorker();
+    } catch (err) {
+      showError('Could not start worker: ' + err.message);
+      setBusy(false);
+      return;
+    }
+
+    worker.onmessage = onWorkerMessage;
+    worker.onerror = function (e) {
+      showError('Worker error: ' + (e.message || 'unknown'));
+      killWorker(); setBusy(false);
+    };
+    worker.postMessage({ type: 'run', file: file, path: path, fields: fields, sort: sortInput.checked });
+  });
+
+  cancelBtn.addEventListener('click', function () {
+    killWorker();
+    setBusy(false);
+    barEl.classList.remove('indet');
+    barFill.style.width = '0';
+    setStatus('Cancelled');
+  });
+
+  /* ---------- worker messages ---------- */
+  function onWorkerMessage(e) {
+    const m = e.data;
+
+    if (m.type === 'status') {
+      barEl.classList.add('indet');
+      barFill.style.width = '';
+      setStatus(m.text);
+
+    } else if (m.type === 'progress') {
+      barEl.classList.remove('indet');
+      const pct = m.total ? (m.loaded / m.total) * 100 : 0;
+      barFill.style.width = pct.toFixed(1) + '%';
+      setStatus('Reading… ' + fmtBytes(m.loaded) + ' / ' + fmtBytes(m.total));
+
+    } else if (m.type === 'done') {
+      finish(m);
+      killWorker();
+      setBusy(false);
+
+    } else if (m.type === 'error') {
+      showError(m.message);
+      killWorker();
+      setBusy(false);
+      barEl.classList.remove('indet');
+      barFill.style.width = '0';
+      setStatus('Failed');
+    }
+  }
+
+  function finish(m) {
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    blobUrl = m.url;
+
+    const name = (currentPath[currentPath.length - 1] || 'result').replace(/[^\w.-]+/g, '_');
+    downloadBtn.href = m.url;
+    downloadBtn.download = name + '.json';
+
+    resultStats.textContent = m.isArray
+      ? m.count + ' item' + (m.count === 1 ? '' : 's') + ' · ' + fmtBytes(m.bytes)
+      : 'object · ' + fmtBytes(m.bytes);
+
+    resultKept.textContent = m.fields && m.fields.length
+      ? 'Kept: ' + m.fields.join(', ')
+      : 'Kept: all fields';
+
+    if (m.sorted) {
+      let s = 'Sorted: Likes ↓, then Date ↓';
+      const notes = [];
+      if (m.missingLikes) notes.push(m.missingLikes + ' without Likes');
+      if (m.missingDate) notes.push(m.missingDate + ' without Date');
+      if (notes.length) s += ' · ' + notes.join(', ') + ' (placed last)';
+      resultSort.textContent = s;
+    } else {
+      resultSort.textContent = 'Not sorted';
+    }
+
+    warnEl.hidden = !m.allEmpty;
+    if (m.allEmpty) {
+      warnEl.textContent = 'None of those fields exist on the extracted objects — check the field names or casing.';
+    }
+
+    previewEl.textContent = m.preview || '(empty)';
+    resultCard.hidden = false;
+
+    barEl.classList.remove('indet');
+    barFill.style.width = '100%';
+    barFill.style.background = 'var(--ok)';
+    setStatus('Done');
+  }
+})();
+</script>
+</body>
+</html>
