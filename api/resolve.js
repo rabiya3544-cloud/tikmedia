@@ -1,71 +1,81 @@
-// api/resolve.js
-export const config = {
-  runtime: 'edge', // Essential for streaming and better timeout
-};
+export const config = { runtime: 'edge' };
 
 export default async function handler(req) {
   const { searchParams } = new URL(req.url);
   const videoUrl = searchParams.get('url');
 
-  if (!videoUrl) {
-    return new Response(JSON.stringify({ error: 'Missing "url" parameter' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
+  // CORS preflight — must answer before any real request
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        'Access-Control-Allow-Headers': 'Range',              // ← unlocks browser Range test
+        'Access-Control-Max-Age': '86400',
+        'Access-Control-Expose-Headers':
+          'Content-Length, Content-Range, Accept-Ranges, Content-Disposition',
+      },
     });
   }
 
+  if (!videoUrl) {
+    return new Response(JSON.stringify({ error: 'Missing "url"' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    });
+  }
+
+  const targetUrl = decodeURIComponent(videoUrl);
+
+  // Forward inbound Range header to TikTok so partial downloads work
+  const upstreamHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+    'Referer': 'https://www.tiktok.com/',
+    'Accept': '*/*',
+    'Accept-Encoding': 'identity',
+  };
+  const inboundRange = req.headers.get('range');
+  if (inboundRange) upstreamHeaders['Range'] = inboundRange;
+
   try {
-    // Decode the URL (it will be URL-encoded when passed as a parameter)
-    const targetUrl = decodeURIComponent(videoUrl);
-
-    // These headers are critical to bypass TikTok's CDN protection[reference:2][reference:3]
-    const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Referer': 'https://www.tiktok.com/',
-      'Accept': '*/*',
-      'Accept-Encoding': 'identity', // Prevents compression, essential for streaming[reference:4]
-    };
-
-    // If you have a tt_chain_token cookie, you can add it here:
-    // headers['Cookie'] = 'tt_chain_token=YOUR_TOKEN_HERE';
-
-    const upstreamResponse = await fetch(targetUrl, {
-      method: 'GET',
-      headers: headers,
-      redirect: 'follow', // Follow any redirects TikTok might send
+    const upstream = await fetch(targetUrl, {
+      method: req.method,              // pass GET or HEAD through
+      headers: upstreamHeaders,
+      redirect: 'follow',
     });
 
-    if (!upstreamResponse.ok) {
-      // Forward the error status and body if the upstream fetch fails
-      return new Response(upstreamResponse.body, {
-        status: upstreamResponse.status,
-        statusText: upstreamResponse.statusText,
-      });
+    const out = new Headers();
+
+    // Forward every header Rendi (or the browser) cares about
+    const forward = [
+      'content-type',
+      'content-length',
+      'accept-ranges',
+      'content-range',
+      'content-disposition',
+      'last-modified',
+      'etag',
+    ];
+    for (const h of forward) {
+      const v = upstream.headers.get(h);
+      if (v) out.set(h, v);
     }
 
-    // Create a new response that streams the video body directly from upstream
-    // We also add CORS headers so your frontend can call this proxy if needed[reference:5]
-    const responseHeaders = new Headers();
-    responseHeaders.set('Content-Type', upstreamResponse.headers.get('Content-Type') || 'video/mp4');
-    responseHeaders.set('Access-Control-Allow-Origin', '*');
-    responseHeaders.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    // CORS
+    out.set('Access-Control-Allow-Origin', '*');
+    out.set('Access-Control-Expose-Headers',
+      'Content-Length, Content-Range, Accept-Ranges, Content-Disposition');
 
-    // Handle CORS preflight requests
-    if (req.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: responseHeaders });
-    }
-
-    // Stream the video data directly to the client (Rendi)
-    return new Response(upstreamResponse.body, {
-      status: 200,
-      headers: responseHeaders,
+    return new Response(req.method === 'HEAD' ? null : upstream.body, {
+      status: upstream.status,          // preserves 206 for Range
+      statusText: upstream.statusText,
+      headers: out,
     });
-
-  } catch (error) {
-    console.error('Proxy error:', error);
-    return new Response(JSON.stringify({ error: 'Failed to proxy video stream.' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 502,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });
   }
 }
