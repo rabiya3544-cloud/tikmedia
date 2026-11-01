@@ -51,7 +51,7 @@
 
   /* ---------- player ---------- */
   .player{position:relative;border-radius:var(--radius);overflow:hidden;background:#000;
-          height:min(56dvh,460px);border:1px solid var(--line);
+          height:320px;border:1px solid var(--line);
           box-shadow:0 12px 34px rgba(0,0,0,.5);margin-bottom:12px}
   video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
   .placeholder{position:absolute;inset:0;display:flex;flex-direction:column;gap:10px;
@@ -639,16 +639,7 @@ function fmt(b) {
       video and choose <b>“Save video”</b>.</p>
   </section>
 
-  <!-- ================= HISTORY ================= -->
-  <section class="card" id="histWrap" hidden>
-    <div class="cardhead">
-      <span>Recent</span>
-      <button id="histClear" class="linkbtn">Clear all</button>
-    </div>
-    <div class="hist" id="hist"></div>
-  </section>
-
-  <p class="foot">Only download content you have the rights to.</p>
+  <p class="foot hidden">Only download content you have the rights to.</p>
 </div>
 
 <!-- ============================================================
@@ -703,7 +694,6 @@ function fmt(b) {
         <pre class="jpre" id="jsonPreview"></pre>
         <div class="hist" id="jsonItems" style="max-height:300px"></div>
         <div class="grid2" style="margin-top:9px">
-          <button id="jsonAll" class="btn primary" hidden>Add to recent</button>
           <a id="jsonDownload" class="btn" download>Download JSON</a>
         </div>
       </div>
@@ -711,7 +701,7 @@ function fmt(b) {
       <div class="jerr" id="jsonError" hidden></div>
 
       <p class="hint" style="text-align:right;margin-top:10px">
-        <a href="json.html" style="color:var(--accent);font-size:11px;text-decoration:none">
+        <a href="media.html" style="color:var(--accent);font-size:11px;text-decoration:none">
           Open full page ↗
         </a>
       </p>
@@ -720,6 +710,11 @@ function fmt(b) {
   <!-- ============================================================ -->
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const HKEY = 'tokplayer.history.v1';
+localStorage.removeItem(HKEY);
+</script>
 
 <script>
 (function () {
@@ -735,7 +730,6 @@ function fmt(b) {
     url: $('url'), pasteBtn: $('pasteBtn'), loadBtn: $('loadBtn'), openBtn: $('openBtn'),
     dlBtn: $('dlBtn'), upBtn: $('upBtn'), dlLabel: $('dlLabel'), upLabel: $('upLabel'), prog: $('prog'), progBar: $('progBar'),
     copyBtn: $('copyBtn'), clrBtn: $('clrBtn'),
-    histWrap: $('histWrap'), hist: $('hist'), histClear: $('histClear'),
     toast: $('toast')
   };
 
@@ -785,6 +779,22 @@ let sizeProbeUrl = ''; // which URL currentSize describes
       return p.hostname + '/' + (last.length > 22 ? last.slice(0, 22) + '…' : last);
     } catch { return u.slice(0, 46) + '…'; }
   }
+  
+  function buildVideoName(url) {
+  const meta = urlMeta.get(url) || {};
+  if (meta.date) {
+    let dateStr = String(meta.date);
+    const iso = dateStr.match(/^(\d{4}-\d{2}-\d{2})T/);
+    if (iso) dateStr = iso[1];
+    dateStr = dateStr
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(/\s+/g, '_')
+      .slice(0, 40);
+    return 'jafernegery' + dateStr + '.mp4';
+  }
+  if (current && current.url === url && current.name) return current.name;
+  return suggestName(url);
+}
 
   function suggestName(u) {
     try {
@@ -863,10 +873,9 @@ updateSizeForUrl(url);
 
   /* ---------------- video events ---------------- */
   video.addEventListener('loadedmetadata', () => {
-    els.spinner.hidden = true;
-    updateTime();
-    if (current) pushHistory(current.url);
-  });
+  els.spinner.hidden = true;
+  updateTime();
+});
   video.addEventListener('canplay', () => { els.spinner.hidden = true; });
   video.addEventListener('waiting', () => { els.spinner.hidden = false; });
   video.addEventListener('playing', () => { els.spinner.hidden = true; setPlayIcon(true); });
@@ -1019,23 +1028,11 @@ toast('Cleared');
     return direct;
   }
 
-  async function handleLoad() {
-    const raw = els.url.value.trim();
-    if (!raw) return toast('Paste a video link first');
-    if (isDirectMedia(raw)) { loadVideo(raw); return; }
-    els.loadBtn.disabled = true;
-    toast('Resolving link…', 1600);
-    try {
-      const direct = await resolveTikTok(raw);
-      loadVideo(direct);
-      toast('Resolved ✓');
-    } catch (e) {
-      toast('Resolve failed — trying the link directly');
-      loadVideo(raw);
-    } finally {
-      els.loadBtn.disabled = false;
-    }
-  }
+  function handleLoad() {
+  const raw = els.url.value.trim();
+  if (!raw) return toast('Paste a video link first');
+  loadVideo(raw);
+}
 
   els.loadBtn.addEventListener('click', handleLoad);
   els.url.addEventListener('keydown', e => { if (e.key === 'Enter') handleLoad(); });
@@ -1157,24 +1154,10 @@ async function resolveTarget() {
   if (!url) { toast('Paste a video link first'); return null; }
   if (!/^(https?:|blob:|data:)/i.test(url)) url = 'https://' + url;
   
-  let name = (current && current.url === url) ? current.name : suggestName(url);
+  let name = buildVideoName(url);
   
   abortCtl = new AbortController();
-  const signal = abortCtl.signal;
-  
-  if (!isDirectMedia(url)) {
-    setDlBusy(true, 'Resolving...', null);
-    try {
-      url = await resolveTikTok(url, signal);
-      name = suggestName(url);
-    } catch (e) {
-      if (e && e.name === 'AbortError') toast('Download cancelled');
-      else toast('Could not resolve this link - paste a direct .mp4 URL');
-      return null;
-    }
-  }
-  
-  return { url, name, signal };
+  return { url, name, signal: abortCtl.signal };
 }
 
 async function fetchBlob(url, signal) {
@@ -1283,130 +1266,6 @@ async function downloadCurrent(upload = false, save = true) {
   }
 }
 
-async function downloadCurrentOld(upload = false, save = true) {
-  let url = els.url.value.trim();
-  if (!url && current && current.url) url = current.url;
-  if (!url) return toast('Paste a video link first');
-  if (!/^(https?:|blob:|data:)/i.test(url)) url = 'https://' + url;
-  
-  let name = (current && current.url === url) ? current.name : suggestName(url);
-  
-  abortCtl = new AbortController();
-  const signal = abortCtl.signal;
-  
-  // Disable both action buttons while any operation is running
-  if (els.upBtn) els.upBtn.disabled = true;
-  if (els.dlBtn) els.dlBtn.disabled = true;
-  
-  if (!isDirectMedia(url)) {
-    setDlBusy(true, 'Resolving...', null);
-    try {
-      url = await resolveTikTok(url, signal);
-      name = suggestName(url);
-    } catch (e) {
-      abortCtl = null;
-      setDlBusy(false);
-      if (els.upBtn) els.upBtn.disabled = false;
-      if (els.dlBtn) els.dlBtn.disabled = false;
-      if (e && e.name === 'AbortError') toast('Download cancelled');
-      else toast('Could not resolve this link - paste a direct .mp4 URL');
-      return;
-    }
-  }
-  
-  setDlBusy(true, '0%', 0);
-  try {
-    const res = await fetch(url, {
-      signal: signal,
-      mode: 'cors',
-      credentials: 'omit',
-      cache: 'no-store'
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    
-    const total = Number(res.headers.get('content-length')) || 0;
-    if (total && !currentSize) {
-      currentSize = total;
-      sizeProbeUrl = url;
-    }
-    
-    let blob;
-    if (res.body && typeof res.body.getReader === 'function') {
-      const reader = res.body.getReader();
-      const chunks = [];
-      let received = 0;
-      for (;;) {
-        const step = await reader.read();
-        if (step.done) break;
-        chunks.push(step.value);
-        received += step.value.length;
-        if (total) {
-          const pct = Math.min(100, (received / total) * 100);
-          setDlBusy(true, Math.round(pct) + '%', pct);
-        } else {
-          setDlBusy(true, fmtBytes(received), null);
-        }
-      }
-      blob = new Blob(chunks, { type: res.headers.get('content-type') || 'video/mp4' });
-    } else {
-      setDlBusy(true, 'Downloading...', null);
-      blob = await res.blob();
-    }
-    
-    // Save locally (optional)
-    if (save) {
-      const objUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objUrl;
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(objUrl), 60000);
-      toast('Saved ' + fmtBytes(blob.size), 3000);
-    } else {
-      toast('Downloaded ' + fmtBytes(blob.size) + ' (not saved)', 3000);
-    }
-    setDlBusy(true, '100%', 100);
-    
-    // Upload (optional)
-    if (upload && UPLOAD_URL) {
-      setDlBusy(true, 'Uploading 0%', 100);
-      try {
-        await uploadVideo(blob, name, url, signal, pct => {
-          setDlBusy(true, 'Uploading ' + Math.round(pct * 100) + '%', 100);
-        });
-        toast('Uploaded ' + fmtBytes(blob.size), 2500);
-      } catch (e) {
-        if (e && e.name === 'AbortError') {
-          toast('Upload cancelled');
-        } else if (!save) {
-          // Upload-only mode failed — save locally so the download isn't wasted
-          const objUrl = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = objUrl;
-          a.download = name;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          setTimeout(() => URL.revokeObjectURL(objUrl), 60000);
-          toast('Upload failed - saved locally instead', 4000);
-        } else {
-          toast('Upload failed: ' + (e.message || 'unknown'), 3500);
-        }
-      }
-    }
-    
-  } catch (err) {
-    if (err && err.name === 'AbortError') toast('Download cancelled');
-    else openFallback(url, name);
-  } finally {
-    abortCtl = null;
-    if (els.upBtn) els.upBtn.disabled = false;
-    if (els.dlBtn) els.dlBtn.disabled = false;
-    setTimeout(() => setDlBusy(false), 500);
-  }
-}
 
   els.dlBtn.addEventListener('click', () => {
     if (abortCtl) {
@@ -1423,60 +1282,6 @@ async function downloadCurrentOld(upload = false, save = true) {
   }
   downloadCurrent(true, false);
 });
-
-
-  /* ---------------- history ---------------- */
-  const HKEY = 'tokplayer.history.v1';
-
-  function getHistory() {
-    try { return JSON.parse(localStorage.getItem(HKEY)) || []; }
-    catch { return []; }
-  }
-  function saveHistory(h) {
-    try { localStorage.setItem(HKEY, JSON.stringify(h.slice(0, 12))); } catch (e) {}
-  }
-  function pushHistory(url) {
-    const h = getHistory().filter(x => x.url !== url);
-    h.unshift({ url: url, ts: Date.now() });
-    saveHistory(h);
-    renderHistory();
-  }
-  function renderHistory() {
-    const h = getHistory();
-    els.histWrap.hidden = h.length === 0;
-    els.hist.innerHTML = '';
-
-    h.forEach(item => {
-      const row = document.createElement('div');
-      row.className = 'hitem';
-      row.innerHTML =
-        '<svg class="i"><use href="#i-clock"></use></svg>' +
-        '<span class="u"></span>' +
-        '<button class="icon sm" data-act="load" aria-label="Load">' +
-          '<svg class="i"><use href="#i-play"></use></svg></button>' +
-        '<button class="icon sm" data-act="del" aria-label="Delete">' +
-          '<svg class="i"><use href="#i-x"></use></svg></button>';
-
-      row.querySelector('.u').textContent = prettyUrl(item.url);
-      row.addEventListener('click', e => {
-        const btn = e.target.closest('button');
-        if (btn && btn.dataset.act === 'del') {
-          saveHistory(getHistory().filter(x => x.url !== item.url));
-          renderHistory();
-          return;
-        }
-        els.url.value = item.url;
-        loadVideo(item.url);
-      });
-      els.hist.appendChild(row);
-    });
-  }
-
-  els.histClear.addEventListener('click', () => {
-    saveHistory([]);
-    renderHistory();
-    toast('History cleared');
-  });
 
   /* ---------------- keyboard shortcuts ---------------- */
   document.addEventListener('keydown', e => {
@@ -1518,7 +1323,7 @@ async function downloadCurrentOld(upload = false, save = true) {
     status: $('jsonStatus'),
     result: $('jsonResult'), stats: $('jsonStats'), kept: $('jsonKept'),
     preview: $('jsonPreview'), items: $('jsonItems'),
-    all: $('jsonAll'), download: $('jsonDownload'),
+   download: $('jsonDownload'),
     error: $('jsonError')
   };
 
@@ -1527,7 +1332,6 @@ async function downloadCurrentOld(upload = false, save = true) {
   let jwBlobUrl = null;
   let jwPath = [];
   let jwBusy = false;
-  let jwUrls = [];
   const urlMeta = new Map();
 
 /* ---------- open / close ---------- */
@@ -1762,8 +1566,6 @@ async function downloadCurrentOld(upload = false, save = true) {
   /* ---------- fetch the blob back and render one row per item ---------- */
   async function jwLoadItems(m) {
   jw.items.innerHTML = '';
-  jwUrls = [];
-  jw.all.hidden = true;
   if (!m.isArray || !m.count) return;
   
   let data;
@@ -1806,7 +1608,6 @@ async function downloadCurrentOld(upload = false, save = true) {
     
     
     if (url) {
-  jwUrls.push(url);
   urlMeta.set(url, { date: date, likes: likes });
   row.addEventListener('click', function() {
     els.url.value = url;
@@ -1827,25 +1628,8 @@ async function downloadCurrentOld(upload = false, save = true) {
     jw.items.appendChild(note);
   }
   
-  jw.all.hidden = jwUrls.length === 0;
 }
 
-  /* ---------- push all extracted links into the Recent list ---------- */
-  jw.all.addEventListener('click', function () {
-    if (!jwUrls.length) return;
-    const h = getHistory();
-    let added = 0;
-    for (let i = jwUrls.length - 1; i >= 0; i--) {
-      const u = jwUrls[i];
-      if (!h.some(function (x) { return x.url === u; })) {
-        h.unshift({ url: u, ts: Date.now() });
-        added++;
-      }
-    }
-    saveHistory(h);
-    renderHistory();
-    toast('Added ' + added + ' link' + (added === 1 ? '' : 's') + ' to recent');
-  });
 
   /* ---------------- init ---------------- */
   if (UPLOAD_URL && els.upBtn){
@@ -1853,12 +1637,6 @@ async function downloadCurrentOld(upload = false, save = true) {
   }
   setPlayIcon(false);
   setMuteIcon();
-  renderHistory();
-
-  (function restore() {
-    const h = getHistory();
-    if (h.length && h[0].url) els.url.value = h[0].url;
-  })();
 
   window.TokPlayer = {
     load: loadVideo,
