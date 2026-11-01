@@ -1,5 +1,6 @@
 {
   "functions": {
-    "api/fetch.js": { "maxDuration": 60, "memory": 1024 }
+    "api/server.js": { "maxDuration": 60, "memory": 1024 },
+    "api/fetch.js":  { "maxDuration": 60, "memory": 1024 }
   }
 }
